@@ -6,19 +6,4560 @@
 //
 
 import SwiftUI
+import Observation
+import Charts
+internal import Combine
 
-struct ContentView: View {
-    var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+struct WorkoutSetEntry: Identifiable, Codable {
+    let id: UUID
+    let setNumber: Int
+    let weight: String
+    let reps: String
+    let rpe: String
+}
+
+struct WorkoutHistoryEntry: Identifiable, Codable {
+    let id: UUID
+    let workoutTitle: String
+    let date: Date
+    let exercise: String
+    let details: String
+    let sets: [WorkoutSetEntry]
+    
+    var totalReps: Int {
+        sets.compactMap { Int($0.reps) }.reduce(0, +)
+    }
+    
+    var totalVolume: Double {
+        sets.reduce(0) { total, set in
+            let weight = Double(set.weight) ?? 0
+            let reps = Double(set.reps) ?? 0
+            return total + (weight * reps)
         }
-        .padding()
+    }
+}
+struct ExerciseItem: Identifiable, Codable, Hashable {
+    let id: UUID
+    let name: String
+    let details: String
+    let notes: String
+    var setCount: Int
+    var groupLabel: String
+    var category: ExerciseCategory
+    var targetRepRange: String
+    var restSeconds: Int
+}
+struct WorkoutCompleteEntry: Identifiable, Codable {
+    let id: UUID
+    let title: String
+    let date: Date
+}
+struct EditableSetLog: Identifiable {
+    let id = UUID()
+    var setNumber: Int
+    var weight: String = ""
+    var reps: String = ""
+    var rpe: String = ""
+}
+struct ExercisePR: Identifiable {
+    let id = UUID()
+    let exercise: String
+    let category: ExerciseCategory
+    let displayValue: String
+}
+struct WorkoutCheckIn: Identifiable, Codable {
+    let id: UUID
+    let date: Date
+    let workoutTitle: String
+    
+    let sleep: Int
+    let stress: Int
+    let recovery: Int
+    let motivation: Int
+    let energy: Int
+    let mood: Int
+    
+    let bodyweight: String
+    
+    var readinessAverage: Double {
+        let total = sleep + recovery + motivation + energy + mood + (11 - stress)
+        return Double(total) / 6.0
+    }
+}
+struct ActiveWorkoutStep: Identifiable {
+    let id = UUID()
+    let exercise: ExerciseItem
+    let setNumber: Int
+}
+func formattedDateTime(_ date: Date) -> String {
+    date.formatted(date: .abbreviated, time: .shortened)
+}
+struct WorkoutCheckOut: Identifiable, Codable {
+    let id: UUID
+    let date: Date
+    let workoutTitle: String
+    
+    let sessionRPE: Int
+    let injuryNotes: String
+}
+enum ExerciseCategory: String, Codable, CaseIterable {
+    case mainLift = "Main Lift"
+    case accessory = "Accessory"
+    case bodyweight = "Bodyweight"
+    case conditioning = "Conditioning"
+}
+struct WorkoutTemplate: Identifiable, Codable {
+    let id: UUID
+    var name: String
+    var category: WorkoutTemplateCategory
+    var exercises: [ExerciseItem]
+}
+struct WorkoutBriefItem: Identifiable {
+    let id = UUID()
+
+    let exercise: ExerciseItem
+
+    let suggestedWeight: String
+
+    let previousWeight: String
+
+    let recommendation: String
+
+    let showReason: Bool
+
+    let reason: String
+}
+enum BJJSessionType: String, Codable, CaseIterable {
+    case gi = "Gi"
+    case noGi = "No-Gi"
+    case openMat = "Open Mat"
+    case competition = "Competition"
+}
+
+enum BeltLevel: String, Codable, CaseIterable {
+    case white = "White"
+    case blue = "Blue"
+    case purple = "Purple"
+    case brown = "Brown"
+    case black = "Black"
+    case unknown = "Unknown"
+}
+
+struct BJJRounds: Identifiable, Codable {
+    let id: UUID
+    var beltLevel: BeltLevel
+    var durationMinutes: Int
+    var roundRPE: Int
+    var notes: String
+}
+
+struct BJJSession: Identifiable, Codable {
+    let id: UUID
+    let date: Date
+    let sessionType: BJJSessionType
+    let totalDurationMinutes: Int
+    let sleep: Int
+    let stress: Int
+    let recovery: Int
+    let motivation: Int
+    let energy: Int
+    let mood: Int
+
+    var readinessAverage: Double {
+        let total = sleep + recovery + motivation + energy + mood + (11 - stress)
+        return Double(total) / 6.0
+    }
+    let sessionRPE: Int
+    let notes: String
+    let rounds: [BJJRounds]
+    let submissionsFinished: [SubmissionCount]
+    let submissionsReceived: [SubmissionCount]
+    
+    var totalLiveMinutes: Int {
+        rounds.reduce(0) { $0 + $1.durationMinutes }
+    }
+    
+    var totalRounds: Int {
+        rounds.count
+    }
+    
+    var averageRoundRPE: Double {
+        guard !rounds.isEmpty else { return 0 }
+        let total = rounds.reduce(0) { $0 + $1.roundRPE }
+        return Double(total) / Double(rounds.count)
+    }
+    
+}
+enum BJJAnalyticsRange: String, CaseIterable {
+    case thisWeek = "This Week"
+    case thisMonth = "This Month"
+    case currentBelt = "Current Belt"
+    case allTime = "All Time"
+}
+struct SubmissionCount: Identifiable, Codable {
+    let id: UUID
+    let submission: SubmissionType
+    let count: Int
+}
+enum SubmissionType: String, Codable, CaseIterable {
+    case rearNakedChoke = "Rear Naked Choke"
+    case guillotine = "Guillotine"
+    case darce = "D'Arce"
+    case anaconda = "Anaconda"
+    case triangle = "Triangle"
+    case armTriangle = "Arm Triangle"
+    case ezekiel = "Ezekiel"
+    case bowAndArrow = "Bow and Arrow"
+    case baseballBatChoke = "Baseball Bat Choke"
+    case crossCollarChoke = "Cross Collar Choke"
+    case loopChoke = "Loop Choke"
+    
+    case armbar = "Armbar"
+    case kimura = "Kimura"
+    case americana = "Americana"
+    case omoplata = "Omoplata"
+    case wristLock = "Wrist Lock"
+    
+    case straightAnkleLock = "Straight Ankle Lock"
+    case heelHook = "Heel Hook"
+    case kneeBar = "Kneebar"
+    case toeHold = "Toe Hold"
+    case calfSlicer = "Calf Slicer"
+    
+    case other = "Other"
+}
+struct BeltRankChange: Identifiable, Codable {
+    let id: UUID
+    let date: Date
+    let beltLevel: BeltLevel
+}
+enum WorkoutTemplateCategory: String, Codable, CaseIterable {
+    case strength = "Strength"
+    case hypertrophy = "Hypertrophy"
+    case power = "Power"
+    case conditioning = "Conditioning"
+    case maintenance = "Maintenance"
+    case competitionPrep = "Competition Prep"
+    case recovery = "Recovery"
+    case custom = "Custom"
+}
+
+@Observable
+class AppStore {
+    var historyEntries: [WorkoutHistoryEntry] = [] {
+        didSet { save() }
+    }
+    
+    var completedWorkouts: [WorkoutCompleteEntry] = [] {
+        didSet { save() }
+    }
+    var todaysWorkoutTitle: String = "Lower Body Strength" {
+        didSet { save() }
+    }
+    var todaysWorkoutNotes: String = "" {
+        didSet { UserDefaults.standard.set(todaysWorkoutNotes, forKey: "todaysWorkoutNotes") }
+    }
+    var checkOuts: [WorkoutCheckOut] = [] {
+        didSet { save() }
+    }
+    var todaysExercises: [ExerciseItem] = [
+        ExerciseItem(
+            id: UUID(),
+            name: "Back Squat",
+            details: "5x5 @ moderate load",
+            notes: "Keep torso rigid, drive up fast",
+            setCount: 5,
+            groupLabel: "",
+            category: .mainLift,
+            targetRepRange: "3-6",
+            restSeconds: 90
+        ),
+        ExerciseItem(
+            id: UUID(),
+            name: "Romanian Deadlift",
+            details: "3x8 focus on hinge",
+            notes: "Hips back, lats tight",
+            setCount: 3,
+            groupLabel: "",
+            category: .mainLift,
+            targetRepRange: "3-6",
+            restSeconds: 90
+        ),
+        ExerciseItem(
+            id: UUID(),
+            name: "Walking Lunges",
+            details: "3x12 each leg",
+            notes: "Knee tracks toes, long stride",
+            setCount: 3,
+            groupLabel: "",
+            category: .accessory,
+            targetRepRange: "8-15",
+            restSeconds: 90
+        ),
+        ExerciseItem(
+            id: UUID(),
+            name: "Pull Ups",
+            details: "3 sets to near failure",
+            notes: "Full hang, chest to bar",
+            setCount: 3,
+            groupLabel: "",
+            category: .bodyweight,
+            targetRepRange: "AMRAP",
+            restSeconds: 90
+        )
+    ] {
+        didSet { save() }
+    }
+    var workoutTemplates: [WorkoutTemplate] = []
+    var checkIns: [WorkoutCheckIn] = [] {
+        didSet { save() }
+    }
+    
+    init() {
+        load()
+    }
+    
+    private func save() {
+        let encoder = JSONEncoder()
+        
+        if let historyData = try? encoder.encode(historyEntries) {
+            UserDefaults.standard.set(historyData, forKey: "historyEntries")
+        }
+        
+        if let completedData = try? encoder.encode(completedWorkouts) {
+            UserDefaults.standard.set(completedData, forKey: "completedWorkouts")
+        }
+        
+        if let todaysExercisesData = try? encoder.encode(todaysExercises) {
+            UserDefaults.standard.set(todaysExercisesData, forKey: "todaysExercises")
+        }
+        if let templateData = try? encoder.encode(workoutTemplates) {
+            UserDefaults.standard.set(
+                templateData,
+                forKey: "workoutTemplates"
+            )
+        }
+        if let checkInData = try? encoder.encode(checkIns) {
+            UserDefaults.standard.set(checkInData, forKey: "checkIns")
+        }
+        if let checkOutData = try? encoder.encode(checkOuts) {
+            UserDefaults.standard.set(checkOutData, forKey: "checkOuts")
+        }
+        if let bjjData = try? encoder.encode(bjjSessions) {
+            UserDefaults.standard.set(bjjData, forKey: "bjjSessions")
+        }
+        if let beltData = try? encoder.encode(beltRankChanges) {
+            UserDefaults.standard.set(beltData, forKey: "beltRankChanges")
+        }
+
+        UserDefaults.standard.set(todaysWorkoutTitle, forKey: "todaysWorkoutTitle")
+    }
+    
+    private func load() {
+        let decoder = JSONDecoder()
+        if let checkInData = UserDefaults.standard.data(forKey: "checkIns"),
+           let decodedCheckIns = try? decoder.decode([WorkoutCheckIn].self, from: checkInData) {
+            checkIns = decodedCheckIns
+        }
+        if let savedTitle = UserDefaults.standard.string(forKey: "todaysWorkoutTitle") {
+            todaysWorkoutTitle = savedTitle
+        }
+        if let historyData = UserDefaults.standard.data(forKey: "historyEntries"),
+           let decodedHistory = try? decoder.decode([WorkoutHistoryEntry].self, from: historyData) {
+            historyEntries = decodedHistory
+        }
+        
+        if let completedData = UserDefaults.standard.data(forKey: "completedWorkouts"),
+           let decodedCompleted = try? decoder.decode([WorkoutCompleteEntry].self, from: completedData) {
+            completedWorkouts = decodedCompleted
+        }
+        
+        if let todaysExercisesData = UserDefaults.standard.data(forKey: "todaysExercises"),
+           let decodedTodaysExercises = try? decoder.decode([ExerciseItem].self, from: todaysExercisesData) {
+            todaysExercises = decodedTodaysExercises
+        }
+        if let templateData = UserDefaults.standard.data(
+            forKey: "workoutTemplates"
+        ),
+        let decodedTemplates = try? decoder.decode(
+            [WorkoutTemplate].self,
+            from: templateData
+        ) {
+            workoutTemplates = decodedTemplates
+        }
+        if let savedNotes = UserDefaults.standard.string(forKey: "todaysWorkoutNotes") {
+            todaysWorkoutNotes = savedNotes
+        }
+        if let checkOutData = UserDefaults.standard.data(forKey: "checkOuts"),
+           let decodedCheckOuts = try? decoder.decode([WorkoutCheckOut].self, from: checkOutData) {
+            checkOuts = decodedCheckOuts
+        }
+        if let bjjData = UserDefaults.standard.data(forKey: "bjjSessions"),
+           let decodedBJJ = try? decoder.decode([BJJSession].self, from: bjjData) {
+            bjjSessions = decodedBJJ
+        }
+        if let beltData = UserDefaults.standard.data(forKey: "beltRankChanges"),
+           let decodedBelts = try? decoder.decode([BeltRankChange].self, from: beltData) {
+            beltRankChanges = decodedBelts
+        }
+    }
+    func addCheckIn(
+        sleep: Int,
+        stress: Int,
+        recovery: Int,
+        motivation: Int,
+        energy: Int,
+        mood: Int,
+        bodyweight: String
+    ) {
+        let checkIn = WorkoutCheckIn(
+            id: UUID(),
+            date: Date(),
+            workoutTitle: todaysWorkoutTitle,
+            sleep: sleep,
+            stress: stress,
+            recovery: recovery,
+            motivation: motivation,
+            energy: energy,
+            mood: mood,
+            bodyweight: bodyweight
+        )
+        
+        checkIns.insert(checkIn, at: 0)
+    }
+    func clearAllData() {
+        self.historyEntries = []
+        self.completedWorkouts = []
+        self.todaysExercises = []
+        UserDefaults.standard.removeObject(forKey: "historyEntries")
+        UserDefaults.standard.removeObject(forKey: "completedWorkouts")
+        UserDefaults.standard.removeObject(forKey: "todaysExercises")
+        self.checkIns = []
+        UserDefaults.standard.removeObject(forKey: "checkIns")
+        self.checkOuts = []
+        UserDefaults.standard.removeObject(forKey: "checkOuts")
+        self.bjjSessions = []
+        UserDefaults.standard.removeObject(forKey: "bjjSessions")
+        self.beltRankChanges = []
+        UserDefaults.standard.removeObject(forKey: "beltRankChanges")
+    }
+    func addExercise(
+        name: String,
+        details: String,
+        notes: String = "",
+        setCount: Int,
+        groupLabel: String,
+        category: ExerciseCategory,
+        targetRepRange: String
+    ) {
+        let restSeconds: Int
+
+        switch category {
+        case .mainLift:
+            restSeconds = 180
+
+        case .accessory:
+            restSeconds = 90
+
+        case .bodyweight:
+            restSeconds = 90
+
+        case .conditioning:
+            restSeconds = 60
+        }
+
+        let newExercise = ExerciseItem(
+            id: UUID(),
+            name: name,
+            details: details,
+            notes: notes,
+            setCount: setCount,
+            groupLabel: groupLabel,
+            category: category,
+            targetRepRange: targetRepRange,
+            restSeconds: restSeconds
+        )
+        
+        todaysExercises.append(newExercise)
+    }
+    func deleteTodaysExercises(at offsets: IndexSet) {
+        todaysExercises.remove(atOffsets: offsets)
+    }
+    func moveTodaysExercises(from source: IndexSet, to destination: Int) {
+        todaysExercises.move(fromOffsets: source, toOffset: destination)
+    }
+    func updateExercise(
+        id: UUID,
+        name: String,
+        details: String,
+        notes: String,
+        setCount: Int,
+        groupLabel: String,
+        category: ExerciseCategory,
+        targetRepRange: String,
+        restSeconds: Int
+    ) {
+        guard let index = todaysExercises.firstIndex(where: { $0.id == id }) else { return }
+        
+        todaysExercises[index] = ExerciseItem(
+            id: id,
+            name: name,
+            details: details,
+            notes: notes,
+            setCount: setCount,
+            groupLabel: groupLabel,
+            category: category,
+            targetRepRange: targetRepRange,
+            restSeconds: restSeconds
+        )
+    }
+    func addCheckOut(
+        sessionRPE: Int,
+        injuryNotes: String
+    ) {
+        let checkOut = WorkoutCheckOut(
+            id: UUID(),
+            date: Date(),
+            workoutTitle: todaysWorkoutTitle,
+            sessionRPE: sessionRPE,
+            injuryNotes: injuryNotes
+        )
+        
+        checkOuts.insert(checkOut, at: 0)
+    }
+    func saveWorkoutTemplate(
+        name: String,
+        category: WorkoutTemplateCategory,
+        exercises: [ExerciseItem]
+    ) {
+        let template = WorkoutTemplate(
+            id: UUID(),
+            name: name,
+            category: category,
+            exercises: exercises
+        )
+        
+        workoutTemplates.append(template)
+    }
+    func loadWorkoutTemplate(_ template: WorkoutTemplate) {
+        todaysExercises = template.exercises
+    }
+    func duplicateExercise(id: UUID) {
+        guard let index = todaysExercises.firstIndex(where: { $0.id == id }) else { return }
+        
+        let original = todaysExercises[index]
+
+        let copy = ExerciseItem(
+            id: UUID(),
+            name: "\(original.name) Copy",
+            details: original.details,
+            notes: original.notes,
+            setCount: original.setCount,
+            groupLabel: original.groupLabel,
+            category: original.category,
+            targetRepRange: original.targetRepRange,
+            restSeconds: original.restSeconds
+        )
+        
+        todaysExercises.insert(copy, at: index + 1)
+    }
+    func updateExerciseInTemplate(
+        templateID: UUID,
+        exerciseID: UUID,
+        name: String,
+        details: String,
+        notes: String,
+        setCount: Int,
+        groupLabel: String,
+        category: ExerciseCategory,
+        targetRepRange: String,
+        restSeconds: Int
+    )
+    {
+        guard let templateIndex = workoutTemplates.firstIndex(where: { $0.id == templateID }) else {
+            return
+        }
+        
+        guard let exerciseIndex = workoutTemplates[templateIndex]
+            .exercises
+            .firstIndex(where: { $0.id == exerciseID }) else {
+            return
+        }
+        
+        workoutTemplates[templateIndex].exercises[exerciseIndex] = ExerciseItem(
+            id: exerciseID,
+            name: name,
+            details: details,
+            notes: notes,
+            setCount: setCount,
+            groupLabel: groupLabel,
+            category: category,
+            targetRepRange: targetRepRange,
+            restSeconds: restSeconds
+        )
+    }
+    func defaultRepRange(
+        templateCategory: WorkoutTemplateCategory,
+        exerciseCategory: ExerciseCategory
+    ) -> String {
+        switch templateCategory {
+        case .strength:
+            switch exerciseCategory {
+            case .mainLift: return "3-6"
+            case .accessory: return "5-10"
+            case .bodyweight: return "AMRAP"
+            case .conditioning: return "Conditioning"
+            }
+            
+        case .hypertrophy:
+            switch exerciseCategory {
+            case .mainLift: return "5-10"
+            case .accessory: return "8-15"
+            case .bodyweight: return "AMRAP"
+            case .conditioning: return "Conditioning"
+            }
+            
+        case .power:
+            switch exerciseCategory {
+            case .mainLift: return "1-5"
+            case .accessory: return "3-8"
+            case .bodyweight: return "Explosive"
+            case .conditioning: return "Short Intervals"
+            }
+            
+        case .maintenance:
+            switch exerciseCategory {
+            case .mainLift: return "3-8"
+            case .accessory: return "8-12"
+            case .bodyweight: return "AMRAP"
+            case .conditioning: return "Moderate"
+            }
+            
+        case .competitionPrep:
+            switch exerciseCategory {
+            case .mainLift: return "2-5"
+            case .accessory: return "6-10"
+            case .bodyweight: return "Controlled"
+            case .conditioning: return "Sport Specific"
+            }
+            
+        case .conditioning:
+            return "Conditioning"
+            
+        case .recovery:
+            return "Easy"
+            
+        case .custom:
+            switch exerciseCategory {
+            case .mainLift: return "3-6"
+            case .accessory: return "8-15"
+            case .bodyweight: return "AMRAP"
+            case .conditioning: return "Conditioning"
+            }
+        }
+    }
+    func addBodyweightEntry(weight: String) {
+        let checkIn = WorkoutCheckIn(
+            id: UUID(),
+            date: Date(),
+            workoutTitle: "Manual Bodyweight Entry",
+            sleep: 5,
+            stress: 5,
+            recovery: 5,
+            motivation: 5,
+            energy: 5,
+            mood: 5,
+            bodyweight: weight
+        )
+        
+        checkIns.insert(checkIn, at: 0)
+    }
+    func duplicateWorkoutTemplate(id: UUID) {
+        guard let original = workoutTemplates.first(where: { $0.id == id }) else {
+            return
+        }
+        
+        let copy = WorkoutTemplate(
+            id: UUID(),
+            name: "\(original.name) Copy",
+            category: original.category,
+            exercises: original.exercises
+        )
+        
+        workoutTemplates.append(copy)
+    }
+    func updateWorkoutTemplate(
+        id: UUID,
+        name: String,
+        category: WorkoutTemplateCategory
+    ) {
+        guard let index = workoutTemplates.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+        
+        workoutTemplates[index].name = name
+        workoutTemplates[index].category = category
+        
+        workoutTemplates[index].exercises = workoutTemplates[index].exercises.map { exercise in
+            ExerciseItem(
+                id: exercise.id,
+                name: exercise.name,
+                details: exercise.details,
+                notes: exercise.notes,
+                setCount: exercise.setCount,
+                groupLabel: exercise.groupLabel,
+                category: exercise.category,
+                targetRepRange: defaultRepRange(
+                    templateCategory: category,
+                    exerciseCategory: exercise.category
+                ),
+                restSeconds: exercise.restSeconds
+            )
+        }
+    }
+    func deleteExerciseFromTemplate(
+        templateID: UUID,
+        offsets: IndexSet
+    ) {
+        guard let index = workoutTemplates.firstIndex(where: { $0.id == templateID }) else {
+            return
+        }
+        
+        workoutTemplates[index].exercises.remove(atOffsets: offsets)
+    }
+    func moveExerciseInTemplate(
+        templateID: UUID,
+        from source: IndexSet,
+        to destination: Int
+    ) {
+        guard let index = workoutTemplates.firstIndex(where: { $0.id == templateID }) else {
+            return
+        }
+        
+        workoutTemplates[index].exercises.move(
+            fromOffsets: source,
+            toOffset: destination
+        )
+    }
+    func resetTemplateRepRanges(
+        templateID: UUID
+    ) {
+        guard let index = workoutTemplates.firstIndex(
+            where: { $0.id == templateID }
+        ) else {
+            return
+        }
+
+        let templateCategory = workoutTemplates[index].category
+
+        workoutTemplates[index].exercises =
+            workoutTemplates[index].exercises.map { exercise in
+
+                ExerciseItem(
+                    id: exercise.id,
+                    name: exercise.name,
+                    details: exercise.details,
+                    notes: exercise.notes,
+                    setCount: exercise.setCount,
+                    groupLabel: exercise.groupLabel,
+                    category: exercise.category,
+                    targetRepRange: defaultRepRange(
+                        templateCategory: templateCategory,
+                        exerciseCategory: exercise.category
+                    ),
+                    restSeconds: exercise.restSeconds
+                )
+        }
+    }
+    func addBJJSession(
+        sessionType: BJJSessionType,
+        totalDurationMinutes: Int,
+        sleep: Int,
+        stress: Int,
+        recovery: Int,
+        motivation: Int,
+        energy: Int,
+        mood: Int,
+        sessionRPE: Int,
+        notes: String,
+        rounds: [BJJRounds],
+        submissionsFinished: [SubmissionCount],
+        submissionsReceived: [SubmissionCount]
+    ) {
+        let session = BJJSession(
+            id: UUID(),
+            date: Date(),
+            sessionType: sessionType,
+            totalDurationMinutes: totalDurationMinutes,
+            sleep: sleep,
+            stress: stress,
+            recovery: recovery,
+            motivation: motivation,
+            energy: energy,
+            mood: mood,
+            sessionRPE: sessionRPE,
+            notes: notes,
+            rounds: rounds,
+            submissionsFinished: submissionsFinished,
+            submissionsReceived: submissionsReceived
+        )
+        
+        bjjSessions.insert(session, at: 0)
+    }
+    func addBeltRankChange(
+        beltLevel: BeltLevel,
+        date: Date = Date()
+    ) {
+        let change = BeltRankChange(
+            id: UUID(),
+            date: date,
+            beltLevel: beltLevel
+        )
+        
+        beltRankChanges.append(change)
+        beltRankChanges.sort { $0.date < $1.date }
+    }
+    func beltRank(for date: Date) -> BeltLevel {
+        let applicableRanks = beltRankChanges
+            .filter { $0.date <= date }
+            .sorted { $0.date < $1.date }
+        
+        return applicableRanks.last?.beltLevel ?? .white
+    }
+    func deleteBJJSession(id: UUID) {
+        bjjSessions.removeAll { $0.id == id }
+    }
+    func updateBJJSession(_ updatedSession: BJJSession) {
+        guard let index = bjjSessions.firstIndex(where: { $0.id == updatedSession.id }) else {
+            return
+        }
+        
+        bjjSessions[index] = updatedSession
+    }
+    func updateBJJSessionRounds(sessionID: UUID, rounds: [BJJRounds]) {
+        guard let index = bjjSessions.firstIndex(where: { $0.id == sessionID }) else {
+            return
+        }
+        
+        let session = bjjSessions[index]
+        
+        bjjSessions[index] = BJJSession(
+            id: session.id,
+            date: session.date,
+            sessionType: session.sessionType,
+            totalDurationMinutes: session.totalDurationMinutes,
+            sleep: session.sleep,
+            stress: session.stress,
+            recovery: session.recovery,
+            motivation: session.motivation,
+            energy: session.energy,
+            mood: session.mood,
+            sessionRPE: session.sessionRPE,
+            notes: session.notes,
+            rounds: rounds,
+            submissionsFinished: session.submissionsFinished,
+            submissionsReceived: session.submissionsReceived
+        )
+    }
+    func updateBJJSessionSubmissions(
+        sessionID: UUID,
+        submissionsFinished: [SubmissionCount],
+        submissionsReceived: [SubmissionCount]
+    ) {
+        guard let index = bjjSessions.firstIndex(where: { $0.id == sessionID }) else {
+            return
+        }
+        
+        let session = bjjSessions[index]
+        
+        bjjSessions[index] = BJJSession(
+            id: session.id,
+            date: session.date,
+            sessionType: session.sessionType,
+            totalDurationMinutes: session.totalDurationMinutes,
+            sleep: session.sleep,
+            stress: session.stress,
+            recovery: session.recovery,
+            motivation: session.motivation,
+            energy: session.energy,
+            mood: session.mood,
+            sessionRPE: session.sessionRPE,
+            notes: session.notes,
+            rounds: session.rounds,
+            submissionsFinished: submissionsFinished,
+            submissionsReceived: submissionsReceived
+        )
+    }
+    func deleteWorkoutTemplate(id: UUID) {
+        workoutTemplates.removeAll { $0.id == id }
+    }
+    func addExerciseToTemplate(
+        templateID: UUID,
+        name: String,
+        details: String,
+        notes: String,
+        setCount: Int,
+        groupLabel: String,
+        category: ExerciseCategory
+    ) {
+        guard let index = workoutTemplates.firstIndex(where: { $0.id == templateID }) else {
+            return
+        }
+        
+        let templateCategory = workoutTemplates[index].category
+
+        let defaultRange = defaultRepRange(
+            templateCategory: templateCategory,
+            exerciseCategory: category
+        )
+
+        let restSeconds: Int
+
+        switch category {
+        case .mainLift:
+            restSeconds = 180
+
+        case .accessory:
+            restSeconds = 90
+
+        case .bodyweight:
+            restSeconds = 90
+
+        case .conditioning:
+            restSeconds = 60
+        }
+
+        let exercise = ExerciseItem(
+            id: UUID(),
+            name: name,
+            details: details,
+            notes: notes,
+            setCount: setCount,
+            groupLabel: groupLabel,
+            category: category,
+            targetRepRange: defaultRange,
+            restSeconds: restSeconds
+        )
+
+        workoutTemplates[index].exercises.append(exercise)
+    }
+    var exercisePRs: [ExercisePR] {
+        let grouped = Dictionary(grouping: historyEntries, by: { $0.exercise })
+        
+        return grouped.compactMap { exerciseName, entries in
+            guard let exerciseItem = todaysExercises.first(where: { $0.name == exerciseName }) else {
+                return nil
+            }
+            
+            let allSets = entries.flatMap { $0.sets }
+            
+            switch exerciseItem.category {
+            case .mainLift:
+                let bestWeight = allSets.compactMap { Double($0.weight) }.max()
+                guard let bestWeight else { return nil }
+                
+                return ExercisePR(
+                    exercise: exerciseName,
+                    category: exerciseItem.category,
+                    displayValue: "\(Int(bestWeight)) lbs"
+                )
+                
+            case .accessory:
+                let bestVolume = entries.map { $0.totalVolume }.max()
+                guard let bestVolume else { return nil }
+                
+                return ExercisePR(
+                    exercise: exerciseName,
+                    category: exerciseItem.category,
+                    displayValue: "\(Int(bestVolume)) lbs volume"
+                )
+                
+            case .bodyweight:
+                let bestReps = allSets.compactMap { Int($0.reps) }.max()
+                guard let bestReps else { return nil }
+                
+                return ExercisePR(
+                    exercise: exerciseName,
+                    category: exerciseItem.category,
+                    displayValue: "\(bestReps) reps"
+                )
+                
+            case .conditioning:
+                return nil
+            }
+        }
+        .sorted { $0.exercise < $1.exercise }
+    }
+    var readinessEntries: [(date: Date, readiness: Double)] {
+        checkIns
+            .map { checkIn in
+                (
+                    date: checkIn.date,
+                    readiness: checkIn.readinessAverage
+                )
+            }
+            .sorted { $0.date < $1.date }
+    }
+
+    var latestReadiness: Double? {
+        readinessEntries.last?.readiness
+    }
+    var bodyweightEntries: [(date: Date, weight: Double)] {
+        checkIns
+            .compactMap { checkIn in
+                if let weight = Double(checkIn.bodyweight) {
+                    return (date: checkIn.date, weight: weight)
+                }
+                return nil
+            }
+            .sorted { $0.date > $1.date }
+    }
+    var latestBodyweight: Double? {
+        bodyweightEntries.first?.weight
+    }
+
+    var averageBodyweight: Double? {
+        let weights = bodyweightEntries.map { $0.weight }
+        guard !weights.isEmpty else { return nil }
+        return weights.reduce(0, +) / Double(weights.count)
+    }
+    var bodyweightDifferenceFromAverage: Double? {
+        guard let latest = latestBodyweight,
+              let average = averageBodyweight else {
+            return nil
+        }
+        
+        return latest - average
+    }
+    var minimumBodyweight: Double {
+        let weights = bodyweightEntries.map { $0.weight }
+        guard let min = weights.min() else { return 0 }
+        return min - 5
+    }
+
+    var maximumBodyweight: Double {
+        let weights = bodyweightEntries.map { $0.weight }
+        guard let max = weights.max() else { return 300 }
+        return max + 5
+    }
+    var bjjSessions: [BJJSession] = [] {
+        didSet { save() }
+    }
+    var beltRankChanges: [BeltRankChange] = [] {
+        didSet { save() }
     }
 }
 
+struct ContentView: View {
+    @State private var appStore = AppStore()
+    
+    var body: some View {
+        TabView {
+            TodayView(appStore: appStore)
+                .tabItem {
+                    Label("Today", systemImage: "figure.strengthtraining.traditional")
+                }
+            BJJView(appStore: appStore)
+                .tabItem {
+                    Label("BJJ", systemImage: "figure.wrestling")
+                }
+        
+            HistoryView(appStore: appStore)
+                .tabItem {
+                    Label("History", systemImage: "clock.arrow.circlepath")
+                }
+            ProgressView(appStore: appStore)
+                .tabItem {
+                    Label("Progress", systemImage: "chart.line.uptrend.xyaxis")
+                }
+            TemplatesView(appStore: appStore)
+                .tabItem {
+                    Label("Templates", systemImage: "rectangle.stack")
+                }
+            
+            ExercisesView(appStore: appStore)
+                .tabItem {
+                    Label("Exercises", systemImage: "list.bullet")
+                }
+            
+            SettingsView(appStore: appStore)
+                .tabItem {
+                    Label("Settings", systemImage: "gearshape")
+                }
+        }
+    }
+}
+
+struct TodayView: View {
+    @Bindable var appStore: AppStore
+    
+    @State private var showAddExerciseSheet = false
+    @State private var showEditTitleSheet = false
+    @State private var showActiveWorkout = false
+    @State private var showSaveTemplateSheet = false
+    
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Today")
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
+
+                Text(appStore.todaysWorkoutTitle)
+                    .font(.title2)
+                    .foregroundColor(.gray)
+                
+                if !appStore.todaysWorkoutNotes.isEmpty {
+                    Text(appStore.todaysWorkoutNotes)
+                        .font(.body)
+                        .foregroundColor(.secondary)
+                }
+                
+                Divider()
+
+                List {
+                    ForEach(appStore.todaysExercises) { exercise in
+                        NavigationLink {
+                            ExerciseDetailView(
+                                exerciseItem: exercise,
+                                appStore: appStore
+                            )
+                        } label: {
+                            WorkoutRow(
+                                exercise: exercise.name,
+                                details: exercise.details,
+                                groupLabel: exercise.groupLabel,
+                                targetRepRange: exercise.targetRepRange,
+                                restSeconds: exercise.restSeconds
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+                    }
+                    .onDelete(perform: appStore.deleteTodaysExercises)
+                    .onMove(perform: appStore.moveTodaysExercises)
+                }
+                .listStyle(.plain)
+                .frame(minHeight: 300)
+
+                Button {
+                    showActiveWorkout = true
+                } label: {
+                    Text("Start Workout")
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.blue)
+                        .foregroundColor(.white)
+                        .cornerRadius(12)
+                }
+                .padding(.top, 8)
+            }
+            .padding()
+            .navigationTitle("Training Log")
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    EditButton()
+                }
+                
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    Button {
+                        showEditTitleSheet = true
+                    } label: {
+                        Image(systemName: "pencil")
+                    }
+                    
+                    Button {
+                        showAddExerciseSheet = true
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                    Button {
+                        showSaveTemplateSheet = true
+                    } label: {
+                        Image(systemName: "square.and.arrow.down")
+                    }
+                }
+            }
+            .sheet(isPresented: $showEditTitleSheet) {
+                EditWorkoutTitleView(appStore: appStore)
+            }
+            .sheet(isPresented: $showAddExerciseSheet) {
+                AddExerciseView(appStore: appStore)
+            }
+            .sheet(isPresented: $showActiveWorkout) {
+                WorkoutCheckInView(appStore: appStore)
+            }
+            .sheet(isPresented: $showSaveTemplateSheet) {
+                SaveTemplateView(appStore: appStore)
+            }
+        }
+    }
+}
+struct CheckInRowView: View {
+    let checkIn: WorkoutCheckIn
+    
+    var body: some View {
+        let readinessText = String(format: "%.1f", checkIn.readinessAverage)
+        
+        VStack(alignment: .leading, spacing: 6) {
+            Text(checkIn.workoutTitle)
+                .font(.headline)
+            
+            Text(formattedDateTime(checkIn.date))
+                .font(.caption)
+                .foregroundColor(.secondary)
+            
+            Text("Readiness: \(readinessText)/10")
+                .font(.subheadline)
+            
+            if !checkIn.bodyweight.isEmpty {
+                Text("Bodyweight: \(checkIn.bodyweight) lbs")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+}
+struct HistoryView: View {
+    @Bindable var appStore: AppStore
+    @State private var showExerciseLogs = false
+    
+    var body: some View {
+        let checkIns = appStore.checkIns
+        let checkOuts = appStore.checkOuts
+        let completedWorkouts = appStore.completedWorkouts
+        let historyEntries = appStore.historyEntries
+        
+        NavigationStack {
+            Group {
+                if historyEntries.isEmpty && completedWorkouts.isEmpty && checkIns.isEmpty && checkOuts.isEmpty {
+                    VStack(spacing: 16) {
+                        Text("History")
+                            .font(.largeTitle)
+                            .fontWeight(.bold)
+                        
+                        Text("No saved workouts yet.")
+                            .foregroundColor(.secondary)
+                        
+                        Spacer()
+                    }
+                    .padding()
+                } else {
+                    List {
+                        if !checkIns.isEmpty {
+                            Section("Check-Ins") {
+                                ForEach(checkIns) { checkIn in
+                                    CheckInRowView(checkIn: checkIn)
+                                }
+                            }
+                        }
+                        if !appStore.checkOuts.isEmpty {
+                            Section("Check-Outs") {
+                                ForEach(appStore.checkOuts) { checkOut in
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        Text(checkOut.workoutTitle)
+                                            .font(.headline)
+                                        
+                                        Text(formattedDateTime(checkOut.date))
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                        
+                                        Text("Session RPE: \(checkOut.sessionRPE)/10")
+                                            .font(.subheadline)
+                                        
+                                        if !checkOut.injuryNotes.isEmpty {
+                                            Text("Notes: \(checkOut.injuryNotes)")
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                        }
+                                    }
+                                    .padding(.vertical, 4)
+                                }
+                            }
+                        }
+                        if !completedWorkouts.isEmpty {
+                            Section("Completed Workouts") {
+                                ForEach(completedWorkouts) { workout in
+                                    VStack(alignment: .leading) {
+                                        Text(workout.title)
+                                            .font(.headline)
+                                        
+                                        Text(formattedDateTime(workout.date))
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
+                            }
+                        }
+                        
+                        Section("Exercise Logs") {
+                            Button {
+                                showExerciseLogs.toggle()
+                            } label: {
+                                HStack {
+                                    Text(showExerciseLogs ? "Hide Exercise Logs" : "Show Exercise Logs")
+                                    Spacer()
+                                    Text("\(historyEntries.count)")
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            
+                            if showExerciseLogs {
+                                ForEach(historyEntries) { entry in
+                                    NavigationLink {
+                                        HistoryDetailView(entry: entry)
+                                    } label: {
+                                        VStack(alignment: .leading, spacing: 8) {
+                                            Text(entry.exercise)
+                                                .font(.headline)
+                                            
+                                            Text(entry.workoutTitle)
+                                                .font(.subheadline)
+                                                .foregroundColor(.secondary)
+                                            
+                                            Text(formattedDateTime(entry.date))
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                            
+                                            Text(entry.details)
+                                                .foregroundColor(.secondary)
+                                            
+                                            Text("Total: \(entry.totalReps) reps, \(Int(entry.totalVolume)) lbs volume")
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                        }
+                                        .padding(.vertical, 4)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("History")
+        }
+    }
+}
+struct HistoryDetailView: View {
+    let entry: WorkoutHistoryEntry
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Text(entry.exercise)
+                .font(.largeTitle)
+                .fontWeight(.bold)
+            
+            Text(entry.details)
+                .font(.title3)
+                .foregroundColor(.secondary)
+            
+            Text(formattedDateTime(entry.date))
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+            
+            Text("Total: \(entry.totalReps) reps, \(Int(entry.totalVolume)) lbs volume")
+                .font(.headline)
+            
+            Divider()
+            
+            Text("Logged Sets")
+                .font(.headline)
+            
+            ForEach(entry.sets) { set in
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Set \(set.setNumber)")
+                        .font(.headline)
+                    
+                    Text("Weight: \(set.weight)")
+                    Text("Reps: \(set.reps)")
+                    Text("RPE: \(set.rpe)")
+                }
+                .padding()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(.systemGray6))
+                .cornerRadius(12)
+            }
+            
+            Spacer()
+        }
+        .padding()
+        .navigationTitle("History Detail")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+struct ExercisesView: View {
+    @Bindable var appStore: AppStore
+    
+    var body: some View {
+        NavigationStack {
+            List(appStore.todaysExercises) { exercise in
+                NavigationLink {
+                    EditExerciseView(
+                        appStore: appStore,
+                        exercise: exercise
+                    )
+                } label: {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(exercise.name)
+                            .font(.headline)
+                        Text(exercise.details)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+            .navigationTitle("Exercises")
+        }
+    }
+}
+
+struct ExerciseLibraryDetailView: View {
+    var exercise: String
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(exercise)
+                .font(.largeTitle)
+                .fontWeight(.bold)
+            
+            Text("Category")
+                .font(.headline)
+            
+            Text("Strength")
+                .foregroundColor(.secondary)
+            
+            Text("Coaching Notes")
+                .font(.headline)
+            
+            Text("This is where your exercise cues, setup notes, and technique reminders will go.")
+                .foregroundColor(.secondary)
+            
+            Spacer()
+        }
+        .padding()
+        .navigationTitle(exercise)
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+struct SettingsView: View {
+    @Bindable var appStore: AppStore
+    @State private var showClearConfirmation = false
+    
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 16) {
+                Text("Settings")
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
+                
+                Text("App controls and reset options.")
+                    .foregroundColor(.secondary)
+                
+                Button(role: .destructive) {
+                    showClearConfirmation = true
+                } label: {
+                    Text("Clear All History")
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.red)
+                        .foregroundColor(.white)
+                        .cornerRadius(12)
+                }
+                
+                Spacer()
+            }
+            .padding()
+            .navigationTitle("Settings")
+            .alert("Clear all saved data?", isPresented: $showClearConfirmation) {
+                Button("Cancel", role: .cancel) { }
+                Button("Clear", role: .destructive) {
+                    appStore.clearAllData()
+                }
+            } message: {
+                Text("This will remove all exercise logs and completed workouts.")
+            }
+        }
+    }
+}
+struct WorkoutRow: View {
+    var exercise: String
+    var details: String
+    var groupLabel: String = ""
+    var targetRepRange: String = ""
+    var restSeconds: Int = 90
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(exercise)
+                .font(.headline)
+            
+            Text(details)
+                .font(.subheadline)
+                .foregroundColor(.gray)
+            
+            if !groupLabel.isEmpty {
+                Text("Group \(groupLabel)")
+                    .font(.caption)
+                    .foregroundColor(.blue)
+            }
+            if !targetRepRange.isEmpty {
+                Text("Target: \(targetRepRange) reps")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            Text("Rest: \(restSeconds) sec")
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(12)
+    }
+}
+struct SetEntryView: View {
+    var setNumber: Int
+    @Binding var weight: String
+    @Binding var reps: String
+    @Binding var rpe: String
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Set \(setNumber)")
+                .font(.headline)
+            
+            TextField("Weight", text: $weight)
+                .textFieldStyle(.roundedBorder)
+                .keyboardType(.decimalPad)
+            
+            TextField("Reps", text: $reps)
+                .textFieldStyle(.roundedBorder)
+                .keyboardType(.numberPad)
+            
+            TextField("RPE", text: $rpe)
+                .textFieldStyle(.roundedBorder)
+                .keyboardType(.decimalPad)
+        }
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(12)
+    }
+}
+struct DynamicSetEntryView: View {
+    @Binding var set: EditableSetLog
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Set \(set.setNumber)")
+                .font(.headline)
+            
+            TextField("Weight", text: $set.weight)
+                .textFieldStyle(.roundedBorder)
+                .keyboardType(.decimalPad)
+            
+            TextField("Reps", text: $set.reps)
+                .textFieldStyle(.roundedBorder)
+                .keyboardType(.numberPad)
+            
+            TextField("RPE", text: $set.rpe)
+                .textFieldStyle(.roundedBorder)
+                .keyboardType(.decimalPad)
+        }
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(12)
+    }
+}
+struct ExerciseDetailView: View {
+    var exerciseItem: ExerciseItem
+    @Bindable var appStore: AppStore
+    
+    @State private var setLogs: [EditableSetLog] = []
+    @State private var showSavedMessage = false
+    
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                Text(exerciseItem.name)
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
+                
+                Text(exerciseItem.details)
+                    .font(.title3)
+                    .foregroundColor(.gray)
+                
+                if !exerciseItem.notes.isEmpty {
+                    Text(exerciseItem.notes)
+                        .font(.body)
+                        .foregroundColor(.secondary)
+                }
+                
+                Divider()
+                
+                Text("Log Your Sets")
+                    .font(.headline)
+                
+                ForEach($setLogs) { $set in
+                    DynamicSetEntryView(set: $set)
+                }
+                
+                Button(action: {
+                    let savedSets = setLogs.map { set in
+                        WorkoutSetEntry(
+                            id: UUID(),
+                            setNumber: set.setNumber,
+                            weight: set.weight,
+                            reps: set.reps,
+                            rpe: set.rpe
+                        )
+                    }
+                    
+                    let entry = WorkoutHistoryEntry(
+                        id: UUID(),
+                        workoutTitle: appStore.todaysWorkoutTitle,
+                        date: Date(),
+                        exercise: exerciseItem.name,
+                        details: exerciseItem.details,
+                        sets: savedSets
+                    )
+                    
+                    appStore.historyEntries.insert(entry, at: 0)
+                    showSavedMessage = true
+                }) {
+                    Text("Save Exercise Log")
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.blue)
+                        .foregroundColor(.white)
+                        .cornerRadius(12)
+                }
+                .padding(.top, 8)
+                
+                if showSavedMessage {
+                    Text("Exercise log saved.")
+                        .foregroundColor(.green)
+                        .font(.subheadline)
+                }
+            }
+            .padding()
+        }
+        .navigationTitle(exerciseItem.name)
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            if setLogs.isEmpty {
+                setLogs = (1...exerciseItem.setCount).map { number in
+                    EditableSetLog(setNumber: number)
+                }
+            }
+        }
+    }
+}
+struct AddExerciseView: View {
+    @Bindable var appStore: AppStore
+    @Environment(\.dismiss) private var dismiss
+    
+    @State private var exerciseName = ""
+    @State private var exerciseDetails = ""
+    @State private var exerciseNotes = ""
+    @State private var setCount = 3
+    @State private var groupLabel = ""
+    @State private var category: ExerciseCategory = .accessory
+    @State private var targetRepRange = "8-12"
+    
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Exercise Info") {
+                    TextField("Exercise Name", text: $exerciseName)
+                    TextField("Details (example: 4 x 5 @ 275)", text: $exerciseDetails)
+                    TextField("Notes (optional)", text: $exerciseNotes)
+                    Stepper("Sets: \(setCount)", value: $setCount, in: 1...10)
+                    TextField("Group Label (optional: A, B, C)", text: $groupLabel)
+                    
+                    Picker("Category", selection: $category) {
+                        ForEach(ExerciseCategory.allCases, id: \.self) { category in
+                            Text(category.rawValue)
+                        }
+                    }
+                    TextField("Target Rep Range", text: $targetRepRange)
+                }
+            }
+            .navigationTitle("Add Exercise")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+                
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        appStore.addExercise(
+                            name: exerciseName,
+                            details: exerciseDetails,
+                            notes: exerciseNotes,
+                            setCount: setCount,
+                            groupLabel: groupLabel.trimmingCharacters(in: .whitespacesAndNewlines).uppercased(),
+                            category: category,
+                            targetRepRange: targetRepRange
+                        )
+                        dismiss()
+                    }
+                    .disabled(exerciseName.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+            }
+        }
+    }
+}
+struct EditExerciseView: View {
+    @Bindable var appStore: AppStore
+    let exercise: ExerciseItem
+    
+    @Environment(\.dismiss) private var dismiss
+    
+    @State private var exerciseName: String
+    @State private var exerciseDetails: String
+    @State private var exerciseNotes: String
+    @State private var setCount: Int
+    @State private var groupLabel: String
+    @State private var category: ExerciseCategory
+    @State private var targetRepRange: String
+    @State private var restSeconds: Int
+    
+    init(appStore: AppStore, exercise: ExerciseItem) {
+        self.appStore = appStore
+        self.exercise = exercise
+        _exerciseName = State(initialValue: exercise.name)
+        _exerciseDetails = State(initialValue: exercise.details)
+        _exerciseNotes = State(initialValue: exercise.notes)
+        _setCount = State(initialValue: exercise.setCount)
+        _groupLabel = State(initialValue: exercise.groupLabel)
+        _category = State(initialValue: exercise.category)
+        _targetRepRange = State(initialValue: exercise.targetRepRange)
+        _restSeconds = State(initialValue: exercise.restSeconds)
+    }
+    
+    var body: some View {
+        Form {
+            Section("Exercise Info") {
+                TextField("Exercise Name", text: $exerciseName)
+                TextField("Details", text: $exerciseDetails)
+                TextField("Notes", text: $exerciseNotes, axis: .vertical)
+                TextField("Group Label (optional: A, B, C)", text: $groupLabel)
+                TextField("Target Rep Range", text: $targetRepRange)
+                Stepper("Rest: \(restSeconds) sec", value: $restSeconds, in: 30...300, step: 15)
+            }
+        }
+        .navigationTitle("Edit Exercise")
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button("Duplicate") {
+                    appStore.duplicateExercise(id: exercise.id)
+                    dismiss()
+                }
+            }
+            
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Save") {
+                    appStore.updateExercise(
+                        id: exercise.id,
+                        name: exerciseName,
+                        details: exerciseDetails,
+                        notes: exerciseNotes,
+                        setCount: setCount,
+                        groupLabel: groupLabel.trimmingCharacters(in: .whitespacesAndNewlines).uppercased(),
+                        category: category,
+                        targetRepRange: targetRepRange,
+                        restSeconds: restSeconds
+                    )
+                    dismiss()
+                }
+            }
+        }
+    }
+}
+struct EditWorkoutTitleView: View {
+    @Bindable var appStore: AppStore
+    @Environment(\.dismiss) private var dismiss
+    
+    @State private var title: String
+    @State private var notes: String
+    
+    init(appStore: AppStore) {
+        self.appStore = appStore
+        _title = State(initialValue: appStore.todaysWorkoutTitle)
+        _notes = State(initialValue: appStore.todaysWorkoutNotes)}
+    
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Workout Title") {
+                    TextField("Title", text: $title)
+                }
+                Section("Workout Notes") {
+                    TextField("Notes", text: $notes, axis: .vertical)
+                }
+            }
+            .navigationTitle("Edit Workout")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+                
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        appStore.todaysWorkoutTitle = title
+                        dismiss ()
+                        appStore.todaysWorkoutNotes = notes
+                    }
+                    .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+            }
+        }
+    }
+}
+struct ProgressView: View {
+    @Bindable var appStore: AppStore
+    @State private var selectedCategory: ExerciseCategory = .mainLift
+    @State private var showAddBodyweightSheet = false
+    
+    var filteredPRs: [ExercisePR] {
+        appStore.exercisePRs.filter { $0.category == selectedCategory }
+    }
+    var body: some View {
+        NavigationStack {
+            List {
+                if let latest = appStore.latestBodyweight {
+                    Section("Bodyweight") {
+                        HStack {
+                            Text("Latest")
+                            Spacer()
+                            Text("\(latest, specifier: "%.1f") lbs")
+                                .font(.headline)
+                        }
+                        
+                        if let average = appStore.averageBodyweight {
+                            HStack {
+                                Text("Average")
+                                Spacer()
+                                Text("\(average, specifier: "%.1f") lbs")
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        if let difference = appStore.bodyweightDifferenceFromAverage {
+                            HStack {
+                                Text("Vs. Average")
+                                Spacer()
+                                Text("\(difference >= 0 ? "+" : "")\(difference, specifier: "%.1f") lbs")
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        if appStore.bodyweightEntries.count >= 2 {
+                            Chart(appStore.bodyweightEntries.reversed(), id: \.date) { entry in
+                                LineMark(
+                                    x: .value("Date", entry.date),
+                                    y: .value("Weight", entry.weight)
+                                )
+                                
+                                PointMark(
+                                    x: .value("Date", entry.date),
+                                    y: .value("Weight", entry.weight)
+                                )
+                            }
+                            .chartYScale(domain: appStore.minimumBodyweight...appStore.maximumBodyweight)
+                            .frame(height: 160)
+                        }
+                        }
+                        Button {
+                            showAddBodyweightSheet = true
+                        } label: {
+                            Text("Add Bodyweight")
+                        }
+                        NavigationLink {
+                            BodyweightHistoryView(appStore: appStore)
+                        } label: {
+                            Text("View Bodyweight History")
+                        }
+                    }
+                if let latestReadiness = appStore.latestReadiness {
+                    Section("Readiness") {
+                        HStack {
+                            Text("Latest")
+                            Spacer()
+                            Text("\(latestReadiness, specifier: "%.1f")/10")
+                                .font(.headline)
+                        }
+                        
+                        if appStore.readinessEntries.count >= 2 {
+                            Chart(appStore.readinessEntries, id: \.date) { entry in
+                                LineMark(
+                                    x: .value("Date", entry.date),
+                                    y: .value("Readiness", entry.readiness)
+                                )
+                                
+                                PointMark(
+                                    x: .value("Date", entry.date),
+                                    y: .value("Readiness", entry.readiness)
+                                )
+                            }
+                            .chartYScale(domain: 1...10)
+                            .frame(height: 160)
+                        }
+                    }
+                }
+                Section {
+                    Picker("Category", selection: $selectedCategory) {
+                        ForEach(ExerciseCategory.allCases, id: \.self) { category in
+                            Text(category.rawValue)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+                
+                if filteredPRs.isEmpty {
+                    Text("No progress data for \(selectedCategory.rawValue.lowercased()) yet.")
+                        .foregroundColor(.secondary)
+                } else {
+                    Section(selectedCategory.rawValue) {
+                        ForEach(filteredPRs) { pr in
+                            HStack {
+                                VStack(alignment: .leading) {
+                                    Text(pr.exercise)
+                                        .font(.headline)
+                                }
+                                
+                                Spacer()
+                                
+                                Text(pr.displayValue)
+                                    .font(.headline)
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Progress")
+            .sheet(isPresented: $showAddBodyweightSheet) {
+                AddBodyweightView(appStore: appStore)
+            }
+        }
+    }
+}
+struct ActiveWorkoutView: View {
+    @Bindable var appStore: AppStore
+    @Environment(\.dismiss) private var dismiss
+    
+    @State private var currentStepIndex = 0
+    @State private var weight = ""
+    @State private var reps = ""
+    @State private var rpe = ""
+    @State private var completedSets: [WorkoutSetEntry] = []
+    @State private var showRestTimer = false
+    @State private var restTimeRemaining = 90
+    @State private var showWorkoutCheckOut = false
+    @State private var lastWeightByExerciseID: [UUID: String] = [:]
+    @State private var weightSuggestion = ""
+    @State private var suggestedNextWeight = ""
+    @State private var showSuggestionCard = false
+    @State private var suggestionNeedsChoice = true
+    @State private var showWorkoutBrief = false
+    @State private var completedWorkoutSets: [WorkoutSetEntry] = []
+    
+    var workoutSteps: [ActiveWorkoutStep] {
+        let exercises = appStore.todaysExercises
+        var steps: [ActiveWorkoutStep] = []
+        var usedGroupedExerciseIDs = Set<UUID>()
+        
+        for exercise in exercises {
+            if exercise.groupLabel.isEmpty {
+                for setNumber in 1...exercise.setCount {
+                    steps.append(ActiveWorkoutStep(exercise: exercise, setNumber: setNumber))
+                }
+            } else if !usedGroupedExerciseIDs.contains(exercise.id) {
+                let groupExercises = exercises.filter { $0.groupLabel == exercise.groupLabel }
+                let maxSets = groupExercises.map { $0.setCount }.max() ?? 0
+                
+                for setNumber in 1...maxSets {
+                    for groupExercise in groupExercises {
+                        if setNumber <= groupExercise.setCount {
+                            steps.append(ActiveWorkoutStep(exercise: groupExercise, setNumber: setNumber))
+                        }
+                    }
+                }
+                
+                for groupExercise in groupExercises {
+                    usedGroupedExerciseIDs.insert(groupExercise.id)
+                }
+            }
+        }
+        
+        return steps
+    }
+    
+    var currentStep: ActiveWorkoutStep? {
+        guard workoutSteps.indices.contains(currentStepIndex) else { return nil }
+        return workoutSteps[currentStepIndex]
+    }
+    
+    var isLastStep: Bool {
+        currentStepIndex == workoutSteps.count - 1
+    }
+    var totalWorkoutSets: Int {
+        completedWorkoutSets.count
+    }
+
+    var totalWorkoutReps: Int {
+        completedWorkoutSets
+            .compactMap { Int($0.reps) }
+            .reduce(0, +)
+    }
+
+    var totalWorkoutVolume: Int {
+        completedWorkoutSets.reduce(0) { total, set in
+            let weight = Int(set.weight) ?? 0
+            let reps = Int(set.reps) ?? 0
+            return total + (weight * reps)
+        }
+    }
+
+    var averageWorkoutRPE: Double {
+        let rpes = completedWorkoutSets.compactMap { Double($0.rpe) }
+        guard !rpes.isEmpty else { return 0 }
+        return rpes.reduce(0, +) / Double(rpes.count)
+    }
+    func loadLastWeightForExercise(_ exercise: ExerciseItem) -> String {
+        let matchingEntries = appStore.historyEntries
+            .filter { $0.exercise == exercise.name }
+            .sorted { $0.date > $1.date }
+        
+        guard let latest = matchingEntries.first,
+              let lastSet = latest.sets.last else {
+            return ""
+        }
+        
+        return lastSet.weight
+    }
+    
+    func suggestedStartWeightFromHistory(_ exercise: ExerciseItem) -> String {
+        let matchingEntries = appStore.historyEntries
+            .filter { $0.exercise == exercise.name }
+            .sorted { $0.date > $1.date }
+        
+        guard let latest = matchingEntries.first,
+              let lastSet = latest.sets.last else {
+            return ""
+        }
+        
+        guard let weight = Double(lastSet.weight),
+              let reps = Int(lastSet.reps),
+              let rpe = Double(lastSet.rpe) else {
+            return lastSet.weight
+        }
+        
+        let rangeParts = exercise.targetRepRange
+            .split(separator: "-")
+            .compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }
+        
+        guard rangeParts.count == 2 else {
+            return lastSet.weight
+        }
+        
+        let low = rangeParts[0]
+        let high = rangeParts[1]
+        
+        if reps >= high && rpe <= 6 {
+            return "\(Int(weight + 10))"
+        } else if reps < low && rpe >= 9 {
+            return "\(Int(weight - 10))"
+        } else {
+            return "\(Int(weight))"
+        }
+    }
+    
+    func workoutBriefItems() -> [WorkoutBriefItem] {
+        appStore.todaysExercises.map { exercise in
+            
+            let previous = loadLastWeightForExercise(exercise)
+            let suggestedRaw = suggestedStartWeightFromHistory(exercise)
+            
+            let suggested: String
+            let recommendation: String
+            let reason: String
+            let showReason: Bool
+            
+            if exercise.category == .bodyweight {
+                let matchingEntries = appStore.historyEntries
+                    .filter { $0.exercise == exercise.name }
+                    .sorted { $0.date > $1.date }
+                
+                let lastReps = matchingEntries.first?.sets.last?.reps ?? ""
+                
+                let rangeParts = exercise.targetRepRange
+                    .split(separator: "-")
+                    .compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }
+                
+                let lastRepNumber = Int(lastReps) ?? 0
+
+                let goal =
+                rangeParts.last ?? (
+                    lastRepNumber > 0
+                    ? lastRepNumber + 1
+                    : 0
+                )
+                suggested = "Goal: \(goal) reps"
+                
+                if let last = Int(lastReps), last < goal {
+                    recommendation = "+1 rep recommended"
+                    reason = "Last: \(last) reps"
+                    showReason = true
+                } else {
+                    recommendation = "Maintain"
+                    reason = lastReps.isEmpty ? "" : "Last: \(lastReps) reps"
+                    showReason = !lastReps.isEmpty
+                }
+                
+            } else {
+                suggested = suggestedRaw.isEmpty ? "No history" : suggestedRaw
+                
+                let changed = previous != suggested && !previous.isEmpty
+                
+                recommendation = changed ? "\(suggested) recommended" : "Maintain"
+                reason = changed ? "Last session suggested adjustment" : ""
+                showReason = changed
+            }
+            
+            return WorkoutBriefItem(
+                exercise: exercise,
+                suggestedWeight: suggested,
+                previousWeight: previous,
+                recommendation: recommendation,
+                showReason: showReason,
+                reason: reason
+            )
+        }
+    }
+    func saveCurrentSet() {
+        guard let step = currentStep else { return }
+        
+        let set = WorkoutSetEntry(
+            id: UUID(),
+            setNumber: step.setNumber,
+            weight: weight,
+            reps: reps,
+            rpe: rpe
+        )
+        
+        completedSets.append(set)
+        completedWorkoutSets.append(set)
+        lastWeightByExerciseID[step.exercise.id] = weight
+        
+        if step.setNumber == step.exercise.setCount {
+            let entry = WorkoutHistoryEntry(
+                id: UUID(),
+                workoutTitle: appStore.todaysWorkoutTitle,
+                date: Date(),
+                exercise: step.exercise.name,
+                details: step.exercise.details,
+                sets: completedSets
+            )
+            
+            appStore.historyEntries.insert(entry, at: 0)
+            completedSets.removeAll()
+        }
+    }
+    
+    func continueAfterSuggestion() {
+        showSuggestionCard = false
+        
+        if isLastStep {
+            advanceWorkout()
+        } else if shouldShowRestAfterCurrentStep() {
+            restTimeRemaining = currentStep?.exercise.restSeconds ?? 90
+            showRestTimer = true
+        } else {
+            advanceWorkout()
+        }
+    }
+    
+    func updateWeightSuggestion(
+        exercise: ExerciseItem,
+        repsText: String,
+        rpeText: String,
+        weightText: String
+    ) {
+        guard let reps = Int(repsText),
+              let rpe = Double(rpeText),
+              let weight = Double(weightText) else {
+            weightSuggestion = ""
+            suggestedNextWeight = ""
+            suggestionNeedsChoice = false
+            return
+        }
+        
+        let rangeParts = exercise.targetRepRange
+            .split(separator: "-")
+            .compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }
+        
+        guard rangeParts.count == 2 else {
+            weightSuggestion = ""
+            suggestedNextWeight = ""
+            suggestionNeedsChoice = false
+            return
+        }
+        
+        let low = rangeParts[0]
+        let high = rangeParts[1]
+        
+        if reps >= high && rpe <= 6 {
+            let suggested = Int(weight + 10)
+            suggestedNextWeight = "\(suggested)"
+            suggestionNeedsChoice = true
+            weightSuggestion = "This looked easy. Increase to \(suggested) next set."
+        } else if reps >= low && reps <= high && rpe >= 7 && rpe <= 8 {
+            suggestedNextWeight = "\(Int(weight))"
+            suggestionNeedsChoice = false
+            weightSuggestion = "Good working weight. Keep it here!"
+        } else if reps < low && rpe >= 9 {
+            let suggested = Int(weight - 10)
+            suggestedNextWeight = "\(suggested)"
+            suggestionNeedsChoice = true
+            weightSuggestion = "Too heavy for today. Reduce weight to \(suggested) next set."
+        } else {
+            suggestedNextWeight = ""
+            suggestionNeedsChoice = false
+            weightSuggestion = "Log the next set based on feel."
+        }
+    }
+    
+    func clearInputs() {
+        reps = ""
+        rpe = ""
+        
+        if let nextStep = currentStep {
+            if let remembered = lastWeightByExerciseID[nextStep.exercise.id] {
+                weight = remembered
+            } else if nextStep.setNumber == 1 {
+                weight = suggestedStartWeightFromHistory(nextStep.exercise)
+            } else {
+                weight = ""
+            }
+        } else {
+            weight = ""
+        }
+    }
+    
+    func advanceWorkout() {
+        if isLastStep {
+            let workout = WorkoutCompleteEntry(
+                id: UUID(),
+                title: appStore.todaysWorkoutTitle,
+                date: Date()
+            )
+            
+            appStore.completedWorkouts.insert(workout, at: 0)
+            showWorkoutCheckOut = true
+        } else {
+            currentStepIndex += 1
+            clearInputs()
+        }
+    }
+    
+    func shouldShowRestAfterCurrentStep() -> Bool {
+        guard let current = currentStep else { return false }
+        if isLastStep { return false }
+        guard workoutSteps.indices.contains(currentStepIndex + 1) else { return false }
+        
+        let next = workoutSteps[currentStepIndex + 1]
+        
+        if current.exercise.groupLabel.isEmpty {
+            return true
+        }
+        
+        return current.exercise.groupLabel != next.exercise.groupLabel ||
+        current.setNumber != next.setNumber
+    }
+    
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 20) {
+                if let step = currentStep {
+                    Text(appStore.todaysWorkoutTitle)
+                        .font(.title2)
+                        .foregroundColor(.secondary)
+                    
+                    Text("Step \(currentStepIndex + 1) of \(workoutSteps.count)")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    
+                    Text(step.exercise.name)
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+                    
+                    Text("Set \(step.setNumber) of \(step.exercise.setCount)")
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                    
+                    if !step.exercise.groupLabel.isEmpty {
+                        Text("Group \(step.exercise.groupLabel)")
+                            .font(.headline)
+                            .foregroundColor(.blue)
+                    }
+                    
+                    Text(step.exercise.details)
+                        .foregroundColor(.secondary)
+                    
+                    if !step.exercise.notes.isEmpty {
+                        Text(step.exercise.notes)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    Text("Target: \(step.exercise.targetRepRange) reps")
+                        .font(.headline)
+                        .foregroundColor(.secondary)
+                    
+                    Text("Rest: \(step.exercise.restSeconds) sec")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    
+                    Divider()
+                    
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Log This Set")
+                            .font(.headline)
+                        
+                        TextField(
+                            step.exercise.category == .bodyweight ? "Added/Assisted Weight" : "Weight",
+                            text: $weight
+                        )
+                        .textFieldStyle(.roundedBorder)
+                        .keyboardType(.decimalPad)
+                        
+                        TextField("Reps", text: $reps)
+                            .textFieldStyle(.roundedBorder)
+                            .keyboardType(.numberPad)
+                        
+                        TextField("RPE", text: $rpe)
+                            .textFieldStyle(.roundedBorder)
+                            .keyboardType(.decimalPad)
+                        
+                        if !weightSuggestion.isEmpty {
+                            Text(weightSuggestion)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .padding()
+                    .background(Color(.systemGray6))
+                    .cornerRadius(12)
+                    
+                    Spacer()
+                    
+                    HStack {
+                        Button {
+                            if currentStepIndex > 0 {
+                                currentStepIndex -= 1
+                                clearInputs()
+                            }
+                        } label: {
+                            Text("Previous")
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color(.systemGray5))
+                                .cornerRadius(12)
+                        }
+                        .disabled(currentStepIndex == 0)
+                        
+                        Button {
+                            saveCurrentSet()
+                            
+                            if let step = currentStep {
+                                updateWeightSuggestion(
+                                    exercise: step.exercise,
+                                    repsText: reps,
+                                    rpeText: rpe,
+                                    weightText: weight
+                                )
+                            }
+                            
+                            if isLastStep {
+                                advanceWorkout()
+                            } else if suggestionNeedsChoice &&
+                                        !suggestedNextWeight
+                                            .trimmingCharacters(
+                                                in: .whitespacesAndNewlines
+                                            )
+                                            .isEmpty {
+
+                                showSuggestionCard = true
+
+                            } else {
+
+                                continueAfterSuggestion()
+                            }
+                            
+                        } label: {
+                            Text(isLastStep ? "Finish Workout" : "Save & Next")
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(isLastStep ? Color.green : Color.blue)
+                                .foregroundColor(.white)
+                                .cornerRadius(12)
+                        }
+                    }
+                } else {
+                    Text("No exercises in today’s workout.")
+                        .foregroundColor(.secondary)
+                    
+                    Button("Close") {
+                        dismiss()
+                    }
+                }
+            }
+            .padding()
+            .navigationTitle("Active Workout")
+            .navigationBarTitleDisplayMode(.inline)
+            .sheet(isPresented: $showRestTimer) {
+                RestTimerView(
+                    secondsRemaining: $restTimeRemaining,
+                    onComplete: {
+                        showRestTimer = false
+                        advanceWorkout()
+                    }
+                )
+            }
+            .sheet(isPresented: $showWorkoutCheckOut) {
+                WorkoutCheckOutView(
+                    appStore: appStore,
+                    totalSets: totalWorkoutSets,
+                    totalReps: totalWorkoutReps,
+                    totalVolume: totalWorkoutVolume,
+                    averageRPE: averageWorkoutRPE
+                )
+            }
+            .sheet(isPresented: $showSuggestionCard) {
+                NavigationStack {
+                    VStack(spacing: 24) {
+                        Text("Suggested Next Weight")
+                            .font(.title2)
+                            .fontWeight(.bold)
+                        
+                        if !suggestedNextWeight.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            Text("\(suggestedNextWeight) lb")
+                                .font(.system(size: 48, weight: .bold))
+                                .monospacedDigit()
+                        }
+                        
+                        Text(weightSuggestion)
+                            .font(.body)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                        
+                        if suggestionNeedsChoice {
+                            Button {
+                                if let step = currentStep {
+                                    lastWeightByExerciseID[step.exercise.id] = suggestedNextWeight
+                                }
+                                
+                                weight = suggestedNextWeight
+                                continueAfterSuggestion()
+                            } label: {
+                                Text("Apply")
+                                    .frame(maxWidth: .infinity)
+                                    .padding()
+                                    .background(Color.blue)
+                                    .foregroundColor(.white)
+                                    .cornerRadius(12)
+                            }
+                            
+                            Button {
+                                continueAfterSuggestion()
+                            } label: {
+                                Text("Keep Current")
+                                    .frame(maxWidth: .infinity)
+                                    .padding()
+                                    .background(Color(.systemGray5))
+                                    .cornerRadius(12)
+                            }
+                        }
+                    }
+                    .padding()
+                    .onAppear {
+                        if !suggestionNeedsChoice {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                                continueAfterSuggestion()
+                            }
+                        }
+                    }
+                }
+            }
+            .sheet(isPresented: $showWorkoutBrief) {
+                NavigationStack {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 24) {
+                            Text("Workout Brief")
+                                .font(.largeTitle)
+                                .fontWeight(.bold)
+                            
+                            ForEach(workoutBriefItems()) { item in
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text(item.exercise.name)
+                                        .font(.headline)
+                                    
+                                    Text(item.suggestedWeight)
+                                        .font(.title2)
+                                        .fontWeight(.bold)
+                                    
+                                    if !item.previousWeight.isEmpty {
+                                        Text("Last: \(item.previousWeight)")
+                                            .foregroundColor(.secondary)
+                                    }
+                                    
+                                    Text(item.recommendation)
+                                    
+                                    if item.showReason {
+                                        Text(item.reason)
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
+                                .padding()
+                                .background(Color(.systemGray6))
+                                .cornerRadius(12)
+                            }
+                            
+                            Button("Got it, let's train.") {
+                                showWorkoutBrief = false
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.blue)
+                            .foregroundColor(.white)
+                            .cornerRadius(12)
+                        }
+                        .padding()
+                    }
+                }
+            }
+            .onAppear {
+                if let step = currentStep,
+                   step.setNumber == 1,
+                   weight.isEmpty {
+                    weight = suggestedStartWeightFromHistory(step.exercise)
+                }
+                
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    showWorkoutBrief = true
+                }
+            }
+        }
+    }
+}
+struct SummaryRow: View {
+    let title: String
+    let value: String
+
+    var body: some View {
+        HStack {
+            Text(title)
+                .foregroundColor(.secondary)
+
+            Spacer()
+
+            Text(value)
+                .font(.headline)
+        }
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(12)
+    }
+}
+struct RestTimerView: View {
+    @Binding var secondsRemaining: Int
+    var onComplete: () -> Void
+    
+    @Environment(\.dismiss) private var dismiss
+    
+    let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+    
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 32) {
+                Text("Rest")
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
+                
+                Text("\(secondsRemaining)")
+                    .font(.system(size: 80, weight: .bold))
+                    .monospacedDigit()
+                
+                Button {
+                    dismiss()
+                    onComplete()
+                } label: {
+                    Text("Skip Rest")
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.blue)
+                        .foregroundColor(.white)
+                        .cornerRadius(12)
+                }
+            }
+            .padding()
+            .onReceive(timer) { _ in
+                if secondsRemaining > 0 {
+                    secondsRemaining -= 1
+                } else {
+                    dismiss()
+                    onComplete()
+                }
+            }
+        }
+    }
+}
+struct WorkoutCheckInView: View {
+    @Bindable var appStore: AppStore
+    @Environment(\.dismiss) private var dismiss
+    
+    @State private var sleep = 5
+    @State private var stress = 5
+    @State private var recovery = 5
+    @State private var motivation = 5
+    @State private var energy = 5
+    @State private var mood = 5
+    @State private var bodyweight = ""
+    
+    @State private var showActiveWorkout = false
+    
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Readiness Check-In") {
+                    ReadinessSlider(title: "Sleep", value: $sleep)
+                    ReadinessSlider(title: "Stress", value: $stress)
+                    ReadinessSlider(title: "Recovery", value: $recovery)
+                    ReadinessSlider(title: "Motivation", value: $motivation)
+                    ReadinessSlider(title: "Energy", value: $energy)
+                    ReadinessSlider(title: "Mood", value: $mood)
+                }
+                
+                Section("Bodyweight") {
+                    TextField("Bodyweight", text: $bodyweight)
+                        .keyboardType(.decimalPad)
+                }
+            }
+            .navigationTitle("Workout Check-In")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+                
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Begin") {
+                        appStore.addCheckIn(
+                            sleep: sleep,
+                            stress: stress,
+                            recovery: recovery,
+                            motivation: motivation,
+                            energy: energy,
+                            mood: mood,
+                            bodyweight: bodyweight
+                        )
+                        showActiveWorkout = true
+                    }
+                }
+            }
+            .sheet(isPresented: $showActiveWorkout) {
+                ActiveWorkoutView(appStore: appStore)
+            }
+            
+        }
+        var readinessAverage: Double {
+            let total = sleep + recovery + motivation + energy + mood + (11 - stress)
+            return Double(total) / 6.0
+        }
+    }
+}
+struct ReadinessSlider: View {
+    let title: String
+    @Binding var value: Int
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(title)
+                    .font(.headline)
+                
+                Spacer()
+                
+                Text("\(value)")
+                    .font(.headline)
+                    .foregroundColor(.secondary)
+            }
+            
+            Slider(
+                value: Binding(
+                    get: { Double(value) },
+                    set: { value = Int($0.rounded()) }
+                ),
+                in: 1...10,
+                step: 1
+            )
+            
+            HStack {
+                Text("1")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                
+                Spacer()
+                
+                Text("10")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(.vertical, 6)
+    }
+}
+struct WorkoutCheckOutView: View {
+    @Bindable var appStore: AppStore
+    
+    let totalSets: Int
+    let totalReps: Int
+    let totalVolume: Int
+    let averageRPE: Double
+    
+    @Environment(\.dismiss) private var dismiss
+    
+    @State private var sessionRPE = 7
+    @State private var injuryNotes = ""
+    
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Session Difficulty") {
+                    ReadinessSlider(
+                        title: "Session RPE",
+                        value: $sessionRPE
+                    )
+                }
+                
+                Section("Pain / Injury Notes") {
+                    TextField(
+                        "Any pain, soreness, tweaks, etc.",
+                        text: $injuryNotes,
+                        axis: .vertical
+                    )
+                }
+                Section("Workout Summary") {
+                    HStack {
+                        Text("Sets Completed")
+                        Spacer()
+                        Text("\(totalSets)")
+                            .foregroundColor(.secondary)
+                    }
+
+                    HStack {
+                        Text("Total Reps")
+                        Spacer()
+                        Text("\(totalReps)")
+                            .foregroundColor(.secondary)
+                    }
+
+                    HStack {
+                        Text("Total Volume")
+                        Spacer()
+                        Text("\(totalVolume) lb")
+                            .foregroundColor(.secondary)
+                    }
+
+                    HStack {
+                        Text("Average RPE")
+                        Spacer()
+                        Text(String(format: "%.1f", averageRPE))
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+            .navigationTitle("Workout Check-Out")
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save Session") {
+                        appStore.addCheckOut(
+                            sessionRPE: sessionRPE,
+                            injuryNotes: injuryNotes
+                        )
+                        
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+struct BodyweightHistoryView: View {
+    @Bindable var appStore: AppStore
+    
+    var body: some View {
+        List {
+            if appStore.bodyweightEntries.isEmpty {
+                Text("No bodyweight data yet.")
+                    .foregroundColor(.secondary)
+            } else {
+                ForEach(appStore.bodyweightEntries, id: \.date) { entry in
+                    HStack {
+                        VStack(alignment: .leading) {
+                            Text(formattedDateTime(entry.date))
+                                .font(.headline)
+                        }
+                        
+                        Spacer()
+                        
+                        Text("\(entry.weight, specifier: "%.1f") lbs")
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+        }
+        .navigationTitle("Bodyweight")
+    }
+}
+struct AddBodyweightView: View {
+    @Bindable var appStore: AppStore
+    @Environment(\.dismiss) private var dismiss
+    
+    @State private var bodyweight = ""
+    
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Bodyweight") {
+                    TextField("Bodyweight", text: $bodyweight)
+                        .keyboardType(.decimalPad)
+                }
+            }
+            .navigationTitle("Add Bodyweight")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+                
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        appStore.addBodyweightEntry(weight: bodyweight)
+                        dismiss()
+                    }
+                    .disabled(bodyweight.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+            }
+        }
+    }
+}
+enum ActiveBJJSheet: Identifiable {
+    case beltRank
+    case logSession
+    
+    var id: String {
+        switch self {
+        case .beltRank:
+            return "beltRank"
+        case .logSession:
+            return "logSession"
+        }
+    }
+}
+struct BJJView: View {
+    @Bindable var appStore: AppStore
+    @State private var activeBJJSheet: ActiveBJJSheet?
+    @State private var selectedRange: BJJAnalyticsRange = .allTime
+    @State private var showRecentSessions = true
+    
+    var totalRounds: Int {
+        appStore.bjjSessions.reduce(0) { $0 + $1.totalRounds }
+    }
+    
+    var totalLiveMinutes: Int {
+        appStore.bjjSessions.reduce(0) { $0 + $1.totalLiveMinutes }
+    }
+    func submissionSummary(_ submissions: [SubmissionCount]) -> String {
+        submissions
+            .filter { $0.count > 0 }
+            .sorted { $0.submission.rawValue < $1.submission.rawValue }
+            .map { "\($0.submission.rawValue) x\($0.count)" }
+            .joined(separator: ", ")
+    }
+    var filteredHardRounds: Int {
+        filteredSessions
+            .flatMap { $0.rounds }
+            .filter { $0.roundRPE >= 8 }
+            .count
+    }
+    var filteredAverageRoundRPE: Double {
+        let allRounds = filteredSessions.flatMap { $0.rounds }
+        guard !allRounds.isEmpty else { return 0 }
+        
+        let total = allRounds.reduce(0) { $0 + $1.roundRPE }
+        return Double(total) / Double(allRounds.count)
+    }
+    var filteredSessions: [BJJSession] {
+        let calendar = Calendar.current
+        let now = Date()
+        
+        switch selectedRange {
+        case .thisWeek:
+            return appStore.bjjSessions.filter { session in
+                calendar.isDate(session.date, equalTo: now, toGranularity: .weekOfYear)
+            }
+            
+        case .thisMonth:
+            return appStore.bjjSessions.filter { session in
+                calendar.isDate(session.date, equalTo: now, toGranularity: .month)
+            }
+            
+        case .currentBelt:
+            let currentBelt = appStore.beltRank(for: Date())
+            return appStore.bjjSessions.filter { session in
+                appStore.beltRank(for: session.date) == currentBelt
+            }
+            
+        case .allTime:
+            return appStore.bjjSessions
+        }
+    }
+    var filteredTotalRounds: Int {
+        filteredSessions.reduce(0) { $0 + $1.totalRounds }
+    }
+
+    var filteredTotalLiveMinutes: Int {
+        filteredSessions.reduce(0) { $0 + $1.totalLiveMinutes }
+    }
+    var filteredHardLiveMinutes: Int {
+        filteredSessions
+            .flatMap { $0.rounds }
+            .filter { $0.roundRPE >= 8 }
+            .reduce(0) { $0 + $1.durationMinutes }
+    }
+
+    var filteredAverageSessionRPE: Double {
+        guard !filteredSessions.isEmpty else { return 0 }
+        let total = filteredSessions.reduce(0) { $0 + $1.sessionRPE }
+        return Double(total) / Double(filteredSessions.count)
+    }
+    var filteredAverageReadiness: Double {
+        guard !filteredSessions.isEmpty else { return 0 }
+        let total = filteredSessions.reduce(0) { $0 + $1.readinessAverage }
+        return total / Double(filteredSessions.count)
+    }
+    var lowReadinessSessions: [BJJSession] {
+        filteredSessions.filter { $0.readinessAverage < 6.0 }
+    }
+    var highOutputLowReadinessSessions: [BJJSession] {
+        filteredSessions.filter {
+            $0.readinessAverage < 6.0 &&
+            (
+                $0.sessionRPE >= 8 ||
+                $0.rounds.filter { $0.roundRPE >= 8 }.count >= 3
+            )
+        }
+    }
+    func submissionTotalsFinished() -> [(submission: SubmissionType, count: Int)] {
+        var totals: [SubmissionType: Int] = [:]
+        
+        for session in filteredSessions {
+            for item in session.submissionsFinished {
+                totals[item.submission, default: 0] += item.count
+            }
+        }
+        
+        return totals
+            .filter { $0.value > 0 }
+            .map { (submission: $0.key, count: $0.value) }
+            .sorted { $0.count > $1.count }
+    }
+
+    func submissionTotalsReceived() -> [(submission: SubmissionType, count: Int)] {
+        var totals: [SubmissionType: Int] = [:]
+        
+        for session in filteredSessions {
+            for item in session.submissionsReceived {
+                totals[item.submission, default: 0] += item.count
+            }
+        }
+        
+        return totals
+            .filter { $0.value > 0 }
+            .map { (submission: $0.key, count: $0.value) }
+            .sorted { $0.count > $1.count }
+    }
+    func roundsByPartnerBelt() -> [(belt: BeltLevel, count: Int)] {
+        var totals: [BeltLevel: Int] = [:]
+        
+        for session in filteredSessions {
+            for round in session.rounds {
+                totals[round.beltLevel, default: 0] += 1
+            }
+        }
+        
+        return totals
+            .filter { $0.value > 0 }
+            .map { (belt: $0.key, count: $0.value) }
+            .sorted { $0.belt.rawValue < $1.belt.rawValue }
+    }
+    var totalSubmissionsFinished: Int {
+        submissionTotalsFinished().reduce(0) { $0 + $1.count }
+    }
+
+    var totalSubmissionsReceived: Int {
+        submissionTotalsReceived().reduce(0) { $0 + $1.count }
+    }
+    func liveMinutesByPartnerBelt() -> [(belt: BeltLevel, minutes: Int)] {
+        var totals: [BeltLevel: Int] = [:]
+        
+        for session in filteredSessions {
+            for round in session.rounds {
+                totals[round.beltLevel, default: 0] += round.durationMinutes
+            }
+        }
+        
+        return totals
+            .filter { $0.value > 0 }
+            .map { (belt: $0.key, minutes: $0.value) }
+            .sorted { $0.belt.rawValue < $1.belt.rawValue }
+    }
+    var partnerBeltChartData: [(belt: BeltLevel, minutes: Int)] {
+        var totals: [BeltLevel: Int] = [:]
+        
+        for session in filteredSessions {
+            for round in session.rounds {
+                totals[round.beltLevel, default: 0] += round.durationMinutes
+            }
+        }
+        
+        return totals
+            .filter { $0.value > 0 }
+            .map { (belt: $0.key, minutes: $0.value) }
+            .sorted { $0.minutes > $1.minutes }
+    }
+    var bjjFatigueScore: Int {
+        let liveMinutesScore = filteredTotalLiveMinutes
+        let hardMinutesScore = filteredHardLiveMinutes * 2
+        let hardRoundsScore = filteredHardRounds * 5
+        let rpeScore = Int(filteredAverageSessionRPE * 5)
+        
+        return liveMinutesScore + hardMinutesScore + hardRoundsScore + rpeScore
+    }
+    var bjjFatigueLabel: String {
+        switch bjjFatigueScore {
+        case 0:
+            return "No Load"
+        case 1...50:
+            return "Low"
+        case 51...100:
+            return "Moderate"
+        case 101...160:
+            return "High"
+        default:
+            return "Very High"
+        }
+    }
+    var insightSummary: String {
+        if highOutputLowReadinessSessions.count >= 3 {
+            return "You frequently perform well despite lower readiness. Monitor cumulative fatigue carefully."
+        }
+        
+        if lowReadinessSessions.count >= filteredSessions.count / 2 && filteredSessions.count >= 4 {
+            return "Recent training has frequently started with lower readiness scores."
+        }
+        
+        return "Readiness and session performance are trending normally."
+    }
+    var readinessChartData: [(date: Date, readiness: Double)] {
+        filteredSessions
+            .sorted { $0.date < $1.date }
+            .map {
+                (
+                    date: $0.date,
+                    readiness: $0.readinessAverage
+                )
+            }
+    }
+    var bjjLoadChartData: [(date: Date, load: Int)] {
+        filteredSessions
+            .sorted { $0.date < $1.date }
+            .map { session in
+                let liveMinutesScore = session.totalLiveMinutes
+                
+                let hardMinutes = session.rounds
+                    .filter { $0.roundRPE >= 8 }
+                    .reduce(0) { $0 + $1.durationMinutes }
+                
+                let hardRounds = session.rounds
+                    .filter { $0.roundRPE >= 8 }
+                    .count
+                
+                let rpeScore = session.sessionRPE * 5
+                
+                let load = liveMinutesScore + (hardMinutes * 2) + (hardRounds * 5) + rpeScore
+                
+                return (date: session.date, load: load)
+            }
+    }
+    
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Picker("Range", selection: $selectedRange) {
+                        ForEach(BJJAnalyticsRange.allCases, id: \.self) { range in
+                            Text(range.rawValue)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+                Section("Overview") {
+                    HStack {
+                        Text("Sessions")
+                        Spacer()
+                        Text("\(filteredSessions.count)")
+                            .font(.headline)
+                    }
+                    HStack {
+                        Text("Avg Readiness")
+                        Spacer()
+                        Text("\(filteredAverageReadiness, specifier: "%.1f")")
+                            .font(.headline)
+                    }
+                    
+                    HStack {
+                        Text("Current Belt")
+                        Spacer()
+                        Text(appStore.beltRank(for: Date()).rawValue)
+                            .font(.headline)
+                    }
+                    
+                    Button {
+                        activeBJJSheet = .beltRank
+                    } label: {
+                        Text("Update Belt Rank")
+                    }
+                    
+                    HStack {
+                        Text("Live Rounds")
+                        Spacer()
+                        Text("\(filteredTotalRounds)")
+                            .font(.headline)
+                    }
+                    
+                    HStack {
+                        Text("Live Minutes")
+                        Spacer()
+                        Text("\(filteredTotalLiveMinutes)")
+                            .font(.headline)
+                    }
+                    HStack {
+                        Text("Avg Session RPE")
+                        Spacer()
+                        Text("\(filteredAverageSessionRPE, specifier: "%.1f")")
+                            .font(.headline)
+                    }
+                    HStack {
+                        Text("Avg Round RPE")
+                        Spacer()
+                        Text("\(filteredAverageRoundRPE, specifier: "%.1f")")
+                            .font(.headline)
+                    }
+                    HStack {
+                        Text("Hard Rounds")
+                        Spacer()
+                        Text("\(filteredHardRounds)")
+                            .font(.headline)
+                    }
+                    HStack {
+                        Text("Hard Live Minutes")
+                        Spacer()
+                        Text("\(filteredHardLiveMinutes)")
+                            .font(.headline)
+                    }
+                    HStack {
+                        Text("BJJ Load")
+                        Spacer()
+                        Text("\(bjjFatigueScore) — \(bjjFatigueLabel)")
+                            .font(.headline)
+                    }
+                }
+                Section("Insights") {
+                    HStack {
+                        Text("Low Readiness Sessions")
+                        Spacer()
+                        Text("\(lowReadinessSessions.count)")
+                            .font(.headline)
+                    }
+                    
+                    HStack {
+                        Text("High Output Despite Low Readiness")
+                        Spacer()
+                        Text("\(highOutputLowReadinessSessions.count)")
+                            .font(.headline)
+                    }
+                    if !filteredSessions.isEmpty {
+                        Text(insightSummary)
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                Section("Readiness Trend") {
+                    if readinessChartData.count < 2 {
+                        Text("Not enough readiness data yet.")
+                            .foregroundColor(.secondary)
+                    } else {
+                        Chart(readinessChartData, id: \.date) { item in
+                            LineMark(
+                                x: .value("Date", item.date),
+                                y: .value("Readiness", item.readiness)
+                            )
+                            
+                            PointMark(
+                                x: .value("Date", item.date),
+                                y: .value("Readiness", item.readiness)
+                            )
+                        }
+                        .chartYScale(domain: 1...10)
+                        .frame(height: 180)
+                    }
+                }
+                Section("BJJ Load Trend") {
+                    if bjjLoadChartData.count < 2 {
+                        Text("Not enough load data yet.")
+                            .foregroundColor(.secondary)
+                    } else {
+                        Chart(bjjLoadChartData, id: \.date) { item in
+                            LineMark(
+                                x: .value("Date", item.date),
+                                y: .value("Load", item.load)
+                            )
+                            
+                            PointMark(
+                                x: .value("Date", item.date),
+                                y: .value("Load", item.load)
+                            )
+                        }
+                        .frame(height: 180)
+                    }
+                }
+                Section("Partner Belt Distribution") {
+                    if partnerBeltChartData.isEmpty {
+                        Text("No live rounds in this range.")
+                            .foregroundColor(.secondary)
+                    } else {
+                        ZStack {
+                            Chart(partnerBeltChartData, id: \.belt) { item in
+                                SectorMark(
+                                    angle: .value("Minutes", item.minutes),
+                                    innerRadius: .ratio(0.6)
+                                )
+                                .foregroundStyle(by: .value("Belt", item.belt.rawValue))
+                            }
+                            .frame(height: 240)
+                            
+                            VStack(spacing: 4) {
+                                Text("\(filteredTotalLiveMinutes)")
+                                    .font(.largeTitle)
+                                    .fontWeight(.bold)
+                                
+                                Text("Live Min")
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+                }
+                Section("Submission Finishes") {
+                    let finishedTotals = submissionTotalsFinished()
+                    
+                    if finishedTotals.isEmpty {
+                        Text("No submissions finished in this range.")
+                            .foregroundColor(.secondary)
+                    } else {
+                        ZStack {
+                            Chart(finishedTotals, id: \.submission) { item in
+                                SectorMark(
+                                    angle: .value("Count", item.count),
+                                    innerRadius: .ratio(0.6)
+                                )
+                                .foregroundStyle(by: .value("Submission", item.submission.rawValue))
+                            }
+                            .frame(height: 240)
+                            
+                            VStack(spacing: 4) {
+                                Text("\(totalSubmissionsFinished)")
+                                    .font(.largeTitle)
+                                    .fontWeight(.bold)
+                                
+                                Text("Finishes")
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+                }
+                Section("Submitted By") {
+                    let receivedTotals = submissionTotalsReceived()
+                    
+                    if receivedTotals.isEmpty {
+                        Text("No submissions received in this range.")
+                            .foregroundColor(.secondary)
+                    } else {
+                        ZStack {
+                            Chart(receivedTotals, id: \.submission) { item in
+                                SectorMark(
+                                    angle: .value("Count", item.count),
+                                    innerRadius: .ratio(0.6)
+                                )
+                                .foregroundStyle(by: .value("Submission", item.submission.rawValue))
+                            }
+                            .frame(height: 240)
+                            
+                            VStack(spacing: 4) {
+                                Text("\(totalSubmissionsReceived)")
+                                    .font(.largeTitle)
+                                    .fontWeight(.bold)
+                                
+                                Text("Received")
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+                }
+                Section("Rounds by Partner Belt") {
+                    let beltTotals = roundsByPartnerBelt()
+                    
+                    if beltTotals.isEmpty {
+                        Text("No live rounds in this range.")
+                            .foregroundColor(.secondary)
+                    } else {
+                        ForEach(beltTotals, id: \.belt) { item in
+                            HStack {
+                                Text(item.belt.rawValue)
+                                Spacer()
+                                Text("\(item.count)")
+                                    .font(.headline)
+                            }
+                        }
+                    }
+                }
+                Section("Live Minutes by Partner Belt") {
+                    let beltMinutes = liveMinutesByPartnerBelt()
+                    
+                    if beltMinutes.isEmpty {
+                        Text("No live minutes in this range.")
+                            .foregroundColor(.secondary)
+                    } else {
+                        ForEach(beltMinutes, id: \.belt) { item in
+                            HStack {
+                                Text(item.belt.rawValue)
+                                Spacer()
+                                Text("\(item.minutes) min")
+                                    .font(.headline)
+                            }
+                        }
+                    }
+                }
+                Section("Submissions Finished") {
+                    let finishedTotals = submissionTotalsFinished()
+                    
+                    if finishedTotals.isEmpty {
+                        Text("No submissions finished in this range.")
+                            .foregroundColor(.secondary)
+                    } else {
+                        ForEach(finishedTotals, id: \.submission) { item in
+                            HStack {
+                                Text(item.submission.rawValue)
+                                Spacer()
+                                Text("\(item.count)")
+                                    .font(.headline)
+                            }
+                        }
+                    }
+                }
+
+                Section("Submitted By") {
+                    let receivedTotals = submissionTotalsReceived()
+                    
+                    if receivedTotals.isEmpty {
+                        Text("No submissions received in this range.")
+                            .foregroundColor(.secondary)
+                    } else {
+                        ForEach(receivedTotals, id: \.submission) { item in
+                            HStack {
+                                Text(item.submission.rawValue)
+                                Spacer()
+                                Text("\(item.count)")
+                                    .font(.headline)
+                            }
+                        }
+                    }
+                }
+                Section {
+                    Button {
+                        activeBJJSheet = .logSession
+                    } label: {
+                        Text("Log BJJ Session")
+                    }
+                }
+                
+                Section {
+                    Button {
+                        withAnimation {
+                            showRecentSessions.toggle()
+                        }
+                    } label: {
+                        HStack {
+                            Text("Recent Sessions")
+                                .font(.headline)
+                            
+                            Spacer()
+                            
+                            Image(systemName: showRecentSessions ? "chevron.down" : "chevron.right")
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .buttonStyle(.plain)
+
+                    if filteredSessions.isEmpty {
+                        Text("No BJJ sessions logged yet.")
+                            .foregroundColor(.secondary)
+                    } else if showRecentSessions {
+                        ForEach(filteredSessions) { session in
+                            NavigationLink {
+                                BJJSessionDetailView(
+                                    appStore: appStore,
+                                    session: session
+                                )
+                            } label: {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text(session.sessionType.rawValue)
+                                        .font(.headline)
+                                    
+                                    Text(formattedDateTime(session.date))
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    
+                                    Text("\(session.totalRounds) rounds • \(session.totalLiveMinutes) live min")
+                                    
+                                    Text("Session RPE: \(session.sessionRPE)/10")
+                                        .foregroundColor(.secondary)
+                                    
+                                    Text("Readiness: \(session.readinessAverage, specifier: "%.1f")/10")
+                                        .foregroundColor(.secondary)
+                                }
+                                .padding(.vertical, 4)
+                            }
+                        }
+                        .onDelete { offsets in
+                            for offset in offsets {
+                                let session = filteredSessions[offset]
+                                appStore.deleteBJJSession(id: session.id)
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("BJJ")
+            .sheet(item: $activeBJJSheet) { sheet in
+                switch sheet {
+                case .beltRank:
+                    BeltRankChangeView(appStore: appStore)
+                case .logSession:
+                    LogBJJSessionView(appStore: appStore)
+                }
+            }
+        }
+    }
+}
+
+
+struct BeltRankChangeView: View {
+    @Bindable var appStore: AppStore
+    @Environment(\.dismiss) private var dismiss
+    
+    @State private var selectedBelt: BeltLevel = .blue
+    @State private var selectedDate = Date()
+    
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Belt Rank") {
+                    Picker("Rank", selection: $selectedBelt) {
+                        ForEach(BeltLevel.allCases, id: \.self) { belt in
+                            Text(belt.rawValue)
+                        }
+                    }
+                    
+                    DatePicker("Date", selection: $selectedDate, displayedComponents: .date)
+                }
+            }
+            .navigationTitle("Update Belt Rank")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+                
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        appStore.addBeltRankChange(
+                            beltLevel: selectedBelt,
+                            date: selectedDate
+                        )
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+struct LogBJJSessionView: View {
+    @Bindable var appStore: AppStore
+    @Environment(\.dismiss) private var dismiss
+    
+    @State private var currentStep = 1
+    
+    @State private var sleep = 5
+    @State private var stress = 5
+    @State private var recovery = 5
+    @State private var motivation = 5
+    @State private var energy = 5
+    @State private var mood = 5
+    
+    @State private var sessionType: BJJSessionType = .gi
+    @State private var totalDurationMinutes = 60
+    @State private var sessionRPE = 6
+    @State private var notes = ""
+    
+    @State private var rounds: [BJJRounds] = []
+    @State private var partnerBelt: BeltLevel = .blue
+    @State private var roundDurationMinutes = 5
+    @State private var roundRPE = 7
+    @State private var roundNotes = ""
+    
+    @State private var submissionsFinished: [SubmissionType: Int] = [:]
+    @State private var submissionsReceived: [SubmissionType: Int] = [:]
+    
+    var stepTitle: String {
+        switch currentStep {
+        case 1: return "Readiness"
+        case 2: return "Session Details"
+        case 3: return "Live Rolls"
+        case 4: return "Submissions"
+        default: return "Log BJJ Session"
+        }
+    }
+    
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Text("Step \(currentStep) of 4")
+                        .foregroundColor(.secondary)
+                }
+                
+                if currentStep == 1 {
+                    Section("Pre-Session Readiness") {
+                        ReadinessSlider(title: "Sleep", value: $sleep)
+                        ReadinessSlider(title: "Stress", value: $stress)
+                        ReadinessSlider(title: "Recovery", value: $recovery)
+                        ReadinessSlider(title: "Motivation", value: $motivation)
+                        ReadinessSlider(title: "Energy", value: $energy)
+                        ReadinessSlider(title: "Mood", value: $mood)
+                    }
+                }
+                
+                if currentStep == 2 {
+                    Section("Session Details") {
+                        Picker("Type", selection: $sessionType) {
+                            ForEach(BJJSessionType.allCases, id: \.self) { type in
+                                Text(type.rawValue)
+                            }
+                        }
+                        
+                        Stepper("Total Duration: \(totalDurationMinutes) min", value: $totalDurationMinutes, in: 10...240, step: 5)
+                        
+                        ReadinessSlider(title: "Session RPE", value: $sessionRPE)
+                        
+                        TextField("Session Notes", text: $notes, axis: .vertical)
+                    }
+                }
+                
+                if currentStep == 3 {
+                    Section("Add Live Roll") {
+                        Picker("Partner Belt", selection: $partnerBelt) {
+                            ForEach(BeltLevel.allCases, id: \.self) { belt in
+                                Text(belt.rawValue)
+                            }
+                        }
+                        
+                        Stepper("Round Duration: \(roundDurationMinutes) min", value: $roundDurationMinutes, in: 1...30)
+                        
+                        ReadinessSlider(title: "Round RPE", value: $roundRPE)
+                        
+                        TextField("Round Notes", text: $roundNotes, axis: .vertical)
+                        
+                        Button("Add Roll") {
+                            let round = BJJRounds(
+                                id: UUID(),
+                                beltLevel: partnerBelt,
+                                durationMinutes: roundDurationMinutes,
+                                roundRPE: roundRPE,
+                                notes: roundNotes
+                            )
+                            
+                            rounds.append(round)
+                            roundNotes = ""
+                        }
+                    }
+                    
+                    if !rounds.isEmpty {
+                        Section("Logged Rolls") {
+                            ForEach(rounds) { round in
+                                Text("\(round.durationMinutes) min vs \(round.beltLevel.rawValue) • RPE \(round.roundRPE)")
+                            }
+                        }
+                    }
+                }
+                
+                if currentStep == 4 {
+                    SubmissionSelectionSection(
+                        title: "Submissions Finished",
+                        submissionCounts: $submissionsFinished
+                    )
+                    
+                    SubmissionSelectionSection(
+                        title: "Submitted By",
+                        submissionCounts: $submissionsReceived
+                    )
+                }
+            }
+            .navigationTitle(stepTitle)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+                
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(currentStep == 4 ? "Save" : "Next") {
+                        if currentStep < 4 {
+                            currentStep += 1
+                        } else {
+                            appStore.addBJJSession(
+                                sessionType: sessionType,
+                                totalDurationMinutes: totalDurationMinutes,
+                                sleep: sleep,
+                                stress: stress,
+                                recovery: recovery,
+                                motivation: motivation,
+                                energy: energy,
+                                mood: mood,
+                                sessionRPE: sessionRPE,
+                                notes: notes,
+                                rounds: rounds,
+                                submissionsFinished: submissionsFinished.map {
+                                    SubmissionCount(id: UUID(), submission: $0.key, count: $0.value)
+                                },
+                                submissionsReceived: submissionsReceived.map {
+                                    SubmissionCount(id: UUID(), submission: $0.key, count: $0.value)
+                                }
+                            )
+                            dismiss()
+                        }
+                    }
+                }
+                
+                ToolbarItem(placement: .bottomBar) {
+                    if currentStep > 1 {
+                        Button("Back") {
+                            currentStep -= 1
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+struct SubmissionSelectionSection: View {
+    let title: String
+    @Binding var submissionCounts: [SubmissionType: Int]
+    
+    var body: some View {
+        Section(title) {
+            ForEach(SubmissionType.allCases, id: \.self) { submission in
+                HStack {
+                    Text(submission.rawValue)
+                    
+                    Spacer()
+                    
+                    Button {
+                        let current = submissionCounts[submission] ?? 0
+                        if current > 0 {
+                            submissionCounts[submission] = current - 1
+                        }
+                    } label: {
+                        Image(systemName: "minus.circle.fill")
+                    }
+                    .buttonStyle(.borderless)
+                    .disabled((submissionCounts[submission] ?? 0) == 0)
+                    
+                    Text("\(submissionCounts[submission] ?? 0)")
+                        .frame(width: 32)
+                        .monospacedDigit()
+                    
+                    Button {
+                        let current = submissionCounts[submission] ?? 0
+                        submissionCounts[submission] = current + 1
+                    } label: {
+                        Image(systemName: "plus.circle.fill")
+                    }
+                    .buttonStyle(.borderless)
+                }
+            }
+        }
+    }
+}
+struct BJJSessionDetailView: View {
+    @Bindable var appStore: AppStore
+    var session: BJJSession
+    
+    @State private var showEditSheet = false
+    @State private var showEditRoundsSheet = false
+    @State private var showEditSubmissionsSheet = false
+    
+    func submissionSummary(_ submissions: [SubmissionCount]) -> String {
+        submissions
+            .filter { $0.count > 0 }
+            .sorted { $0.submission.rawValue < $1.submission.rawValue }
+            .map { "\($0.submission.rawValue) x\($0.count)" }
+            .joined(separator: ", ")
+    }
+    
+    var body: some View {
+        List {
+            Section("Session") {
+                HStack {
+                    Text("Type")
+                    Spacer()
+                    Text(session.sessionType.rawValue)
+                        .foregroundColor(.secondary)
+                }
+                
+                HStack {
+                    Text("Date")
+                    Spacer()
+                    Text(formattedDateTime(session.date))
+                        .foregroundColor(.secondary)
+                }
+                
+                HStack {
+                    Text("Duration")
+                    Spacer()
+                    Text("\(session.totalDurationMinutes) min")
+                        .foregroundColor(.secondary)
+                }
+                
+                HStack {
+                    Text("Session RPE")
+                    Spacer()
+                    Text("\(session.sessionRPE)/10")
+                        .foregroundColor(.secondary)
+                }
+                
+                if !session.notes.isEmpty {
+                    Text(session.notes)
+                        .foregroundColor(.secondary)
+                }
+            }
+            Section("Pre-Session Readiness") {
+                HStack {
+                    Text("Sleep")
+                    Spacer()
+                    Text("\(session.sleep)/10")
+                        .foregroundColor(.secondary)
+                }
+                
+                HStack {
+                    Text("Stress")
+                    Spacer()
+                    Text("\(session.stress)/10")
+                        .foregroundColor(.secondary)
+                }
+                
+                HStack {
+                    Text("Recovery")
+                    Spacer()
+                    Text("\(session.recovery)/10")
+                        .foregroundColor(.secondary)
+                }
+                
+                HStack {
+                    Text("Motivation")
+                    Spacer()
+                    Text("\(session.motivation)/10")
+                        .foregroundColor(.secondary)
+                }
+                
+                HStack {
+                    Text("Energy")
+                    Spacer()
+                    Text("\(session.energy)/10")
+                        .foregroundColor(.secondary)
+                }
+                
+                HStack {
+                    Text("Mood")
+                    Spacer()
+                    Text("\(session.mood)/10")
+                        .foregroundColor(.secondary)
+                }
+                
+                HStack {
+                    Text("Average")
+                    Spacer()
+                    Text("\(session.readinessAverage, specifier: "%.1f")/10")
+                        .font(.headline)
+                }
+            }
+            Section("Live Rolls") {
+                if session.rounds.isEmpty {
+                    Text("No live rolls logged.")
+                        .foregroundColor(.secondary)
+                } else {
+                    ForEach(session.rounds) { round in
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("\(round.durationMinutes) min vs \(round.beltLevel.rawValue)")
+                                .font(.headline)
+                            
+                            Text("Round RPE: \(round.roundRPE)/10")
+                                .foregroundColor(.secondary)
+                            
+                            if !round.notes.isEmpty {
+                                Text(round.notes)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+            }
+            
+            Section("Submissions Finished") {
+                if session.submissionsFinished.filter({ $0.count > 0 }).isEmpty {
+                    Text("None logged.")
+                        .foregroundColor(.secondary)
+                } else {
+                    Text(submissionSummary(session.submissionsFinished))
+                }
+            }
+            
+            Section("Submitted By") {
+                if session.submissionsReceived.filter({ $0.count > 0 }).isEmpty {
+                    Text("None logged.")
+                        .foregroundColor(.secondary)
+                } else {
+                    Text(submissionSummary(session.submissionsReceived))
+                }
+            }
+        }
+        .navigationTitle("BJJ Session")
+
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button("Edit Rolls") {
+                    showEditRoundsSheet = true
+                }
+            }
+            
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Button("Edit Subs") {
+                    showEditSubmissionsSheet = true
+                }
+                
+                Button("Edit") {
+                    showEditSheet = true
+                }
+            }
+        }
+
+        .sheet(isPresented: $showEditSheet) {
+            EditBJJSessionView(
+                appStore: appStore,
+                session: session
+            )
+        }
+
+        .sheet(isPresented: $showEditRoundsSheet) {
+            EditBJJRoundsView(
+                appStore: appStore,
+                session: session
+            )
+        }
+        .sheet(isPresented: $showEditSubmissionsSheet) {
+            EditBJJSubmissionsView(
+                appStore: appStore,
+                session: session
+            )
+        }
+    }
+}
+struct EditBJJSessionView: View {
+    @Bindable var appStore: AppStore
+    @Environment(\.dismiss) private var dismiss
+    
+    let originalSession: BJJSession
+    
+    @State private var sessionType: BJJSessionType
+    @State private var totalDurationMinutes: Int
+    @State private var sessionRPE: Int
+    @State private var notes: String
+    
+    init(appStore: AppStore, session: BJJSession) {
+        self.appStore = appStore
+        self.originalSession = session
+        
+        _sessionType = State(initialValue: session.sessionType)
+        _totalDurationMinutes = State(initialValue: session.totalDurationMinutes)
+        _sessionRPE = State(initialValue: session.sessionRPE)
+        _notes = State(initialValue: session.notes)
+    }
+    
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Session Details") {
+                    Picker("Type", selection: $sessionType) {
+                        ForEach(BJJSessionType.allCases, id: \.self) { type in
+                            Text(type.rawValue)
+                        }
+                    }
+                    
+                    Stepper(
+                        "Total Duration: \(totalDurationMinutes) min",
+                        value: $totalDurationMinutes,
+                        in: 10...240,
+                        step: 5
+                    )
+                    
+                    ReadinessSlider(
+                        title: "Session RPE",
+                        value: $sessionRPE
+                    )
+                    
+                    TextField(
+                        "Session Notes",
+                        text: $notes,
+                        axis: .vertical
+                    )
+                }
+            }
+            .navigationTitle("Edit Session")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+                
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        let updatedSession = BJJSession(
+                            id: originalSession.id,
+                            date: originalSession.date,
+                            sessionType: sessionType,
+                            totalDurationMinutes: totalDurationMinutes,
+                            sleep: originalSession.sleep,
+                            stress: originalSession.stress,
+                            recovery: originalSession.recovery,
+                            motivation: originalSession.motivation,
+                            energy: originalSession.energy,
+                            mood: originalSession.mood,
+                            sessionRPE: sessionRPE,
+                            notes: notes,
+                            rounds: originalSession.rounds,
+                            submissionsFinished: originalSession.submissionsFinished,
+                            submissionsReceived: originalSession.submissionsReceived
+                        )
+                        
+                        appStore.updateBJJSession(updatedSession)
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+struct EditBJJRoundsView: View {
+    @Bindable var appStore: AppStore
+    let session: BJJSession
+    
+    @Environment(\.dismiss) private var dismiss
+    
+    @State private var editableRounds: [BJJRounds]
+    
+    init(appStore: AppStore, session: BJJSession) {
+        self.appStore = appStore
+        self.session = session
+        _editableRounds = State(initialValue: session.rounds)
+    }
+    
+    var body: some View {
+        NavigationStack {
+            List {
+                if editableRounds.isEmpty {
+                    Text("No live rolls logged.")
+                        .foregroundColor(.secondary)
+                } else {
+                    ForEach($editableRounds) { $round in
+                        Section("Roll") {
+                            Picker("Partner Belt", selection: $round.beltLevel) {
+                                ForEach(BeltLevel.allCases, id: \.self) { belt in
+                                    Text(belt.rawValue)
+                                }
+                            }
+                            
+                            Stepper(
+                                "Duration: \(round.durationMinutes) min",
+                                value: $round.durationMinutes,
+                                in: 1...30
+                            )
+                            
+                            ReadinessSlider(
+                                title: "Round RPE",
+                                value: $round.roundRPE
+                            )
+                            
+                            TextField(
+                                "Notes",
+                                text: $round.notes,
+                                axis: .vertical
+                            )
+                        }
+                    }
+                    .onDelete { offsets in
+                        editableRounds.remove(atOffsets: offsets)
+                    }
+                }
+            }
+            .navigationTitle("Edit Rolls")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+                
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        appStore.updateBJJSessionRounds(
+                            sessionID: session.id,
+                            rounds: editableRounds
+                        )
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+struct EditBJJSubmissionsView: View {
+    @Bindable var appStore: AppStore
+    let session: BJJSession
+    
+    @Environment(\.dismiss) private var dismiss
+    
+    @State private var finishedCounts: [SubmissionType: Int]
+    @State private var receivedCounts: [SubmissionType: Int]
+    
+    init(appStore: AppStore, session: BJJSession) {
+        self.appStore = appStore
+        self.session = session
+        
+        var finished: [SubmissionType: Int] = [:]
+        for item in session.submissionsFinished {
+            finished[item.submission] = item.count
+        }
+        
+        var received: [SubmissionType: Int] = [:]
+        for item in session.submissionsReceived {
+            received[item.submission] = item.count
+        }
+        
+        _finishedCounts = State(initialValue: finished)
+        _receivedCounts = State(initialValue: received)
+    }
+    
+    var body: some View {
+        NavigationStack {
+            Form {
+                SubmissionSelectionSection(
+                    title: "Submissions Finished",
+                    submissionCounts: $finishedCounts
+                )
+                
+                SubmissionSelectionSection(
+                    title: "Submitted By",
+                    submissionCounts: $receivedCounts
+                )
+            }
+            .navigationTitle("Edit Submissions")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+                
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        let finished = finishedCounts.map {
+                            SubmissionCount(
+                                id: UUID(),
+                                submission: $0.key,
+                                count: $0.value
+                            )
+                        }
+                        
+                        let received = receivedCounts.map {
+                            SubmissionCount(
+                                id: UUID(),
+                                submission: $0.key,
+                                count: $0.value
+                            )
+                        }
+                        
+                        appStore.updateBJJSessionSubmissions(
+                            sessionID: session.id,
+                            submissionsFinished: finished,
+                            submissionsReceived: received
+                        )
+                        
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+struct SaveTemplateView: View {
+    @Bindable var appStore: AppStore
+    @Environment(\.dismiss) private var dismiss
+    
+    @State private var templateName = ""
+    @State private var category: WorkoutTemplateCategory = .strength
+    
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Template Name") {
+                    TextField("Example: Lower Strength", text: $templateName)
+                }
+            }
+            Picker("Category", selection: $category) {
+                ForEach(WorkoutTemplateCategory.allCases, id: \.self) { category in
+                    Text(category.rawValue)
+                }
+            }
+            .navigationTitle("Save Template")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+                
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        appStore.saveWorkoutTemplate(
+                            name: templateName,
+                            category: category,
+                            exercises: appStore.todaysExercises
+                        )
+                        dismiss()
+                    }
+                    .disabled(templateName.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+            }
+        }
+    }
+}
+struct TemplatesView: View {
+    @Bindable var appStore: AppStore
+    
+    var body: some View {
+        NavigationStack {
+            List {
+                if appStore.workoutTemplates.isEmpty {
+                    Text("No saved templates yet.")
+                        .foregroundColor(.secondary)
+                } else {
+                    ForEach(appStore.workoutTemplates) { template in
+                        Section(template.category.rawValue) {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(template.name)
+                                    .font(.headline)
+                                
+                                Text("\(template.exercises.count) exercises")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                
+                                Button("Load to Today") {
+                                    appStore.loadWorkoutTemplate(template)
+                                }
+                                
+                                NavigationLink {
+                                    EditWorkoutTemplateView(
+                                        appStore: appStore,
+                                        template: template
+                                    )
+                                } label: {
+                                    Text("Edit Template")
+                                        .font(.caption)
+                                }
+                            }
+                            .padding(.vertical, 4)
+                            .swipeActions(edge: .trailing) {
+
+                                Button("Duplicate") {
+                                    appStore.duplicateWorkoutTemplate(
+                                        id: template.id
+                                    )
+                                }
+
+                                Button(role: .destructive) {
+                                    if let index = appStore.workoutTemplates.firstIndex(
+                                        where: { $0.id == template.id }
+                                    ) {
+                                        appStore.deleteWorkoutTemplate(
+                                            id: appStore.workoutTemplates[index].id
+                                        )
+                                    }
+                                } label: {
+                                    Text("Delete")
+                                }
+                            }
+                        }
+                    }
+                    .onDelete { offsets in
+                        for offset in offsets {
+                            let template = appStore.workoutTemplates[offset]
+                            appStore.deleteWorkoutTemplate(id: template.id)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Templates")
+        }
+    }
+}
+struct EditWorkoutTemplateView: View {
+    @Bindable var appStore: AppStore
+    let template: WorkoutTemplate
+    
+    @Environment(\.dismiss) private var dismiss
+    
+    @State private var templateName: String
+    @State private var category: WorkoutTemplateCategory
+    @State private var showAddTemplateExerciseSheet = false
+    
+    
+    init(appStore: AppStore, template: WorkoutTemplate) {
+        self.appStore = appStore
+        self.template = template
+        _templateName = State(initialValue: template.name)
+        _category = State(initialValue: template.category)
+    }
+    
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Template Info") {
+                    TextField("Template Name", text: $templateName)
+                    
+                    Picker("Category", selection: $category) {
+                        ForEach(WorkoutTemplateCategory.allCases, id: \.self) { category in
+                            Text(category.rawValue)
+                        }
+                    }
+                    Button("Reset Rep Ranges") {
+                        appStore.resetTemplateRepRanges(
+                            templateID: template.id
+                        )
+                    }
+                    .foregroundColor(.orange)
+                }
+                Section("Exercises") {
+                    if template.exercises.isEmpty {
+                        Text("No exercises in template.")
+                            .foregroundColor(.secondary)
+                    } else {
+                        ForEach(template.exercises) { exercise in
+                            NavigationLink {
+                                EditTemplateExerciseView(
+                                    appStore: appStore,
+                                    templateID: template.id,
+                                    exercise: exercise
+                                )
+                            } label: {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(exercise.name)
+                                        .font(.headline)
+                                    
+                                    Text(exercise.details)
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    
+                                    Text("Target: \(exercise.targetRepRange) reps")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                   
+                                    Text("Rest: \(exercise.restSeconds) sec")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                        }
+                        .onDelete { offsets in
+                            appStore.deleteExerciseFromTemplate(
+                                templateID: template.id,
+                                offsets: offsets
+                            )
+                        }
+                        .onMove { source, destination in
+                            appStore.moveExerciseInTemplate(
+                                templateID: template.id,
+                                from: source,
+                                to: destination
+                            )
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Edit Template")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+                
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        appStore.updateWorkoutTemplate(
+                            id: template.id,
+                            name: templateName,
+                            category: category
+                        )
+
+                        dismiss()
+                    }
+                    .disabled(templateName.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+                ToolbarItem(placement: .topBarLeading) {
+                    EditButton()
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showAddTemplateExerciseSheet = true
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                }
+            }
+            .sheet(isPresented: $showAddTemplateExerciseSheet) {
+                AddTemplateExerciseView(
+                    appStore: appStore,
+                    templateID: template.id
+                )
+            }
+        }
+    }
+}
+struct AddTemplateExerciseView: View {
+    @Bindable var appStore: AppStore
+    let templateID: UUID
+    
+    @Environment(\.dismiss) private var dismiss
+    
+    @State private var exerciseName = ""
+    @State private var exerciseDetails = ""
+    @State private var exerciseNotes = ""
+    @State private var setCount = 3
+    @State private var groupLabel = ""
+    @State private var category: ExerciseCategory = .accessory
+    
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Exercise Info") {
+                    TextField("Exercise Name", text: $exerciseName)
+                    TextField("Details", text: $exerciseDetails)
+                    TextField("Notes", text: $exerciseNotes, axis: .vertical)
+                    Stepper("Sets: \(setCount)", value: $setCount, in: 1...10)
+                    TextField("Group Label", text: $groupLabel)
+                    
+                    Picker("Category", selection: $category) {
+                        ForEach(ExerciseCategory.allCases, id: \.self) { category in
+                            Text(category.rawValue)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Add Exercise")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+                
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        appStore.addExerciseToTemplate(
+                            templateID: templateID,
+                            name: exerciseName,
+                            details: exerciseDetails,
+                            notes: exerciseNotes,
+                            setCount: setCount,
+                            groupLabel: groupLabel.trimmingCharacters(in: .whitespacesAndNewlines).uppercased(),
+                            category: category
+                        )
+                        dismiss()
+                    }
+                    .disabled(exerciseName.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+            }
+        }
+    }
+}
+struct EditTemplateExerciseView: View {
+    @Bindable var appStore: AppStore
+    
+    let templateID: UUID
+    let exercise: ExerciseItem
+    
+    @Environment(\.dismiss) private var dismiss
+    
+    @State private var exerciseName: String
+    @State private var exerciseDetails: String
+    @State private var exerciseNotes: String
+    @State private var setCount: Int
+    @State private var groupLabel: String
+    @State private var category: ExerciseCategory
+    @State private var targetRepRange: String
+    @State private var restSeconds: Int
+    
+    init(
+        appStore: AppStore,
+        templateID: UUID,
+        exercise: ExerciseItem
+    ) {
+        self.appStore = appStore
+        self.templateID = templateID
+        self.exercise = exercise
+        
+        _exerciseName = State(initialValue: exercise.name)
+        _exerciseDetails = State(initialValue: exercise.details)
+        _exerciseNotes = State(initialValue: exercise.notes)
+        _setCount = State(initialValue: exercise.setCount)
+        _groupLabel = State(initialValue: exercise.groupLabel)
+        _category = State(initialValue: exercise.category)
+        _targetRepRange = State(initialValue: exercise.targetRepRange)
+        _restSeconds = State(initialValue: exercise.restSeconds)
+    }
+    
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Exercise Info") {
+                    TextField("Exercise Name", text: $exerciseName)
+                    
+                    TextField("Details", text: $exerciseDetails)
+                    
+                    TextField("Target Rep Range", text: $targetRepRange)
+                    
+                    Stepper(
+                                "Rest: \(restSeconds) sec",
+                                value: $restSeconds,
+                                in: 30...300,
+                                step: 15
+                            )
+                    
+                    TextField(
+                        "Notes",
+                        text: $exerciseNotes,
+                        axis: .vertical
+                    )
+                    
+                    Stepper(
+                        "Sets: \(setCount)",
+                        value: $setCount,
+                        in: 1...10
+                    )
+                    
+                    TextField(
+                        "Group Label",
+                        text: $groupLabel
+                    )
+                    
+                    Picker("Category", selection: $category) {
+                        ForEach(ExerciseCategory.allCases, id: \.self) { category in
+                            Text(category.rawValue)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Edit Exercise")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+                
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        appStore.updateExerciseInTemplate(
+                            templateID: templateID,
+                            exerciseID: exercise.id,
+                            name: exerciseName,
+                            details: exerciseDetails,
+                            notes: exerciseNotes,
+                            setCount: setCount,
+                            groupLabel: groupLabel.trimmingCharacters(in: .whitespacesAndNewlines).uppercased(),
+                            category: category,
+                            targetRepRange: targetRepRange,
+                            restSeconds: restSeconds
+                        )
+
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
 #Preview {
     ContentView()
+}
+extension Array where Element: Hashable {
+    func removingDuplicates() -> [Element] {
+        var seen = Set<Element>()
+        return filter { seen.insert($0).inserted }
+    }
 }
