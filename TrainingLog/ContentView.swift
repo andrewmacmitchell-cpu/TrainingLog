@@ -129,6 +129,12 @@ struct WorkoutBriefItem: Identifiable {
 
     let reason: String
 }
+struct WorkoutPR: Identifiable {
+    let id = UUID()
+
+    let exercise: String
+    let type: String
+}
 enum BJJSessionType: String, Codable, CaseIterable {
     case gi = "Gi"
     case noGi = "No-Gi"
@@ -1969,6 +1975,7 @@ struct ActiveWorkoutView: View {
     @State private var suggestionNeedsChoice = true
     @State private var showWorkoutBrief = false
     @State private var completedWorkoutSets: [WorkoutSetEntry] = []
+    @State private var completedWorkoutSetsByExercise: [String: [WorkoutSetEntry]] = [:]
     
     var workoutSteps: [ActiveWorkoutStep] {
         let exercises = appStore.todaysExercises
@@ -2156,6 +2163,10 @@ struct ActiveWorkoutView: View {
         
         completedSets.append(set)
         completedWorkoutSets.append(set)
+        completedWorkoutSetsByExercise[
+            step.exercise.name,
+            default: []
+        ].append(set)
         lastWeightByExerciseID[step.exercise.id] = weight
         
         if step.setNumber == step.exercise.setCount {
@@ -2235,7 +2246,116 @@ struct ActiveWorkoutView: View {
             weightSuggestion = "Log the next set based on feel."
         }
     }
-    
+    func workoutPRs() -> [WorkoutPR] {
+        var prs: [WorkoutPR] = []
+        var seenPRs = Set<String>()
+
+        for entry in appStore.historyEntries {
+            guard let exercise = appStore.todaysExercises.first(
+                where: { $0.name == entry.exercise }
+            ) else {
+                continue
+            }
+
+            let exerciseSets =
+            completedWorkoutSetsByExercise[
+                entry.exercise
+            ] ?? []
+
+            guard !exerciseSets.isEmpty else {
+                continue
+            }
+
+            switch exercise.category {
+            case .mainLift:
+                let currentBestWeight =
+                exerciseSets
+                    .compactMap { Double($0.weight) }
+                    .max() ?? 0
+
+                let previousBestWeight =
+                entry.sets
+                    .compactMap { Double($0.weight) }
+                    .max() ?? 0
+
+                if currentBestWeight > previousBestWeight {
+                    let key = "\(entry.exercise)-Weight"
+
+                    if !seenPRs.contains(key) {
+                        prs.append(
+                            WorkoutPR(
+                                exercise: entry.exercise,
+                                type: "Weight PR"
+                            )
+                        )
+
+                        seenPRs.insert(key)
+                    }
+                }
+
+            case .accessory:
+                let currentVolume =
+                exerciseSets.reduce(0) { total, set in
+                    let weight = Double(set.weight) ?? 0
+                    let reps = Double(set.reps) ?? 0
+                    return total + (weight * reps)
+                }
+
+                let previousVolume =
+                entry.sets.reduce(0) { total, set in
+                    let weight = Double(set.weight) ?? 0
+                    let reps = Double(set.reps) ?? 0
+                    return total + (weight * reps)
+                }
+
+                if currentVolume > previousVolume {
+                    let key = "\(entry.exercise)-Volume"
+
+                    if !seenPRs.contains(key) {
+                        prs.append(
+                            WorkoutPR(
+                                exercise: entry.exercise,
+                                type: "Volume PR"
+                            )
+                        )
+
+                        seenPRs.insert(key)
+                    }
+                }
+
+            case .bodyweight:
+                let currentBestReps =
+                exerciseSets
+                    .compactMap { Int($0.reps) }
+                    .max() ?? 0
+
+                let previousBestReps =
+                entry.sets
+                    .compactMap { Int($0.reps) }
+                    .max() ?? 0
+
+                if currentBestReps > previousBestReps {
+                    let key = "\(entry.exercise)-Rep"
+
+                    if !seenPRs.contains(key) {
+                        prs.append(
+                            WorkoutPR(
+                                exercise: entry.exercise,
+                                type: "Rep PR"
+                            )
+                        )
+
+                        seenPRs.insert(key)
+                    }
+                }
+
+            case .conditioning:
+                continue
+            }
+        }
+
+        return prs
+    }
     func clearInputs() {
         reps = ""
         rpe = ""
@@ -2438,7 +2558,8 @@ struct ActiveWorkoutView: View {
                     totalSets: totalWorkoutSets,
                     totalReps: totalWorkoutReps,
                     totalVolume: totalWorkoutVolume,
-                    averageRPE: averageWorkoutRPE
+                    averageRPE: averageWorkoutRPE,
+                    prs: workoutPRs()
                 )
             }
             .sheet(isPresented: $showSuggestionCard) {
@@ -2734,6 +2855,7 @@ struct WorkoutCheckOutView: View {
     let totalReps: Int
     let totalVolume: Int
     let averageRPE: Double
+    let prs: [WorkoutPR]
     
     @Environment(\.dismiss) private var dismiss
     
@@ -2758,6 +2880,24 @@ struct WorkoutCheckOutView: View {
                     )
                 }
                 Section("Workout Summary") {
+                    if !prs.isEmpty {
+
+                        Section("PRs Hit") {
+
+                            ForEach(prs) { pr in
+
+                                HStack {
+
+                                    Text(pr.exercise)
+
+                                    Spacer()
+
+                                    Text(pr.type)
+                                        .foregroundColor(.orange)
+                                }
+                            }
+                        }
+                    }
                     HStack {
                         Text("Sets Completed")
                         Spacer()
