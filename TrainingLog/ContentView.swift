@@ -2111,13 +2111,11 @@ struct ActiveWorkoutView: View {
                     .compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }
                 
                 let lastRepNumber = Int(lastReps) ?? 0
-
-                let goal =
-                rangeParts.last ?? (
-                    lastRepNumber > 0
-                    ? lastRepNumber + 1
-                    : 0
+                
+                let goal = rangeParts.last ?? (
+                    lastRepNumber > 0 ? lastRepNumber + 1 : 0
                 )
+                
                 suggested = "Goal: \(goal) reps"
                 
                 if let last = Int(lastReps), last < goal {
@@ -2136,7 +2134,30 @@ struct ActiveWorkoutView: View {
                 let changed = previous != suggested && !previous.isEmpty
                 
                 recommendation = changed ? "\(suggested) recommended" : "Maintain"
-                reason = changed ? "Last session suggested adjustment" : ""
+                
+                if changed {
+                    let matchingEntries = appStore.historyEntries
+                        .filter { $0.exercise == exercise.name }
+                        .sorted { $0.date > $1.date }
+                    
+                    let lastSet = matchingEntries.first?.sets.last
+                    let lastRPE = Double(lastSet?.rpe ?? "") ?? 0
+                    
+                    if suggestedRaw > previous {
+                        reason = """
+                        Top of rep range
+                        Low effort (RPE \(Int(lastRPE)))
+                        """
+                    } else {
+                        reason = """
+                        Below target reps
+                        High effort (RPE \(Int(lastRPE)))
+                        """
+                    }
+                } else {
+                    reason = ""
+                }
+                
                 showReason = changed
             }
             
@@ -2203,6 +2224,12 @@ struct ActiveWorkoutView: View {
         rpeText: String,
         weightText: String
     ) {
+        if exercise.category == .bodyweight {
+            weightSuggestion = ""
+            suggestedNextWeight = ""
+            suggestionNeedsChoice = false
+            return
+        }
         guard let reps = Int(repsText),
               let rpe = Double(rpeText),
               let weight = Double(weightText) else {
