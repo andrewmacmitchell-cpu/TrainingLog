@@ -2051,7 +2051,25 @@ struct ActiveWorkoutView: View {
         
         return lastSet.weight
     }
-    
+    func latestReadinessScore() -> Double? {
+        appStore.checkIns
+            .sorted { $0.date > $1.date }
+            .first?
+            .readinessAverage
+    }
+    func readinessRecommendationText() -> String {
+        guard let readiness = latestReadinessScore() else {
+            return "No readiness data yet."
+        }
+
+        if readiness >= 8 {
+            return "Readiness is high today. Get after it."
+        } else if readiness >= 5 {
+            return "Typical day. Stay the course. Don't chase PRs."
+        } else {
+            return "Way to show up when you aren't feeling it. Reduce load today and stack quality reps."
+        }
+    }
     func suggestedStartWeightFromHistory(_ exercise: ExerciseItem) -> String {
         let matchingEntries = appStore.historyEntries
             .filter { $0.exercise == exercise.name }
@@ -2652,6 +2670,20 @@ struct ActiveWorkoutView: View {
                             Text("Workout Brief")
                                 .font(.largeTitle)
                                 .fontWeight(.bold)
+                            
+                            VStack(alignment: .leading, spacing: 8) {
+                                if let readiness = latestReadinessScore() {
+                                    Text("Readiness: \(readiness, specifier: "%.1f")/10")
+                                        .font(.headline)
+                                }
+
+                                Text(readinessRecommendationText())
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding()
+                            .background(Color(.systemGray6))
+                            .cornerRadius(12)
                             
                             ForEach(workoutBriefItems()) { item in
                                 VStack(alignment: .leading, spacing: 8) {
