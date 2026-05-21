@@ -135,6 +135,13 @@ struct WorkoutPR: Identifiable {
     let exercise: String
     let type: String
 }
+struct PRHistoryEntry: Identifiable, Codable {
+    let id: UUID
+    let date: Date
+    let exercise: String
+    let type: String
+    let workoutTitle: String
+}
 enum BJJSessionType: String, Codable, CaseIterable {
     case gi = "Gi"
     case noGi = "No-Gi"
@@ -324,6 +331,9 @@ class AppStore {
     init() {
         load()
     }
+    var prHistoryEntries: [PRHistoryEntry] = [] {
+        didSet { save() }
+    }
     
     private func save() {
         let encoder = JSONEncoder()
@@ -356,6 +366,9 @@ class AppStore {
         }
         if let beltData = try? encoder.encode(beltRankChanges) {
             UserDefaults.standard.set(beltData, forKey: "beltRankChanges")
+        }
+        if let prData = try? encoder.encode(prHistoryEntries) {
+            UserDefaults.standard.set(prData, forKey: "prHistoryEntries")
         }
 
         UserDefaults.standard.set(todaysWorkoutTitle, forKey: "todaysWorkoutTitle")
@@ -407,6 +420,10 @@ class AppStore {
         if let beltData = UserDefaults.standard.data(forKey: "beltRankChanges"),
            let decodedBelts = try? decoder.decode([BeltRankChange].self, from: beltData) {
             beltRankChanges = decodedBelts
+        }
+        if let prData = UserDefaults.standard.data(forKey: "prHistoryEntries"),
+           let decodedPRs = try? decoder.decode([PRHistoryEntry].self, from: prData) {
+            prHistoryEntries = decodedPRs
         }
     }
     func addCheckIn(
@@ -1228,9 +1245,17 @@ struct CheckInRowView: View {
         .padding(.vertical, 4)
     }
 }
+enum HistoryTab: String, CaseIterable {
+    case workouts = "Workouts"
+    case exercises = "Exercises"
+    case prs = "PRs"
+    case readiness = "Readiness"
+    case bodyweight = "Bodyweight"
+}
 struct HistoryView: View {
     @Bindable var appStore: AppStore
-    @State private var showExerciseLogs = false
+    @State private var selectedHistoryTab: HistoryTab = .workouts
+    @State private var showExerciseLogs = true
     
     var body: some View {
         let checkIns = appStore.checkIns
@@ -1239,105 +1264,150 @@ struct HistoryView: View {
         let historyEntries = appStore.historyEntries
         
         NavigationStack {
-            Group {
-                if historyEntries.isEmpty && completedWorkouts.isEmpty && checkIns.isEmpty && checkOuts.isEmpty {
-                    VStack(spacing: 16) {
-                        Text("History")
-                            .font(.largeTitle)
-                            .fontWeight(.bold)
-                        
-                        Text("No saved workouts yet.")
-                            .foregroundColor(.secondary)
-                        
-                        Spacer()
+            List {
+                Picker("History", selection: $selectedHistoryTab) {
+                    ForEach(HistoryTab.allCases, id: \.self) { tab in
+                        Text(tab.rawValue)
                     }
-                    .padding()
-                } else {
-                    List {
-                        if !checkIns.isEmpty {
-                            Section("Check-Ins") {
-                                ForEach(checkIns) { checkIn in
-                                    CheckInRowView(checkIn: checkIn)
+                }
+                .pickerStyle(.segmented)
+                
+                switch selectedHistoryTab {
+                case .workouts:
+                    if completedWorkouts.isEmpty {
+                        Text("No completed workouts yet.")
+                            .foregroundColor(.secondary)
+                    } else {
+                        Section("Completed Workouts") {
+                            ForEach(completedWorkouts) { workout in
+                                VStack(alignment: .leading) {
+                                    Text(workout.title)
+                                        .font(.headline)
+                                    
+                                    Text(formattedDateTime(workout.date))
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
                                 }
                             }
                         }
-                        if !appStore.checkOuts.isEmpty {
-                            Section("Check-Outs") {
-                                ForEach(appStore.checkOuts) { checkOut in
-                                    VStack(alignment: .leading, spacing: 6) {
-                                        Text(checkOut.workoutTitle)
+                    }
+                    
+                    if !checkOuts.isEmpty {
+                        Section("Check-Outs") {
+                            ForEach(checkOuts) { checkOut in
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text(checkOut.workoutTitle)
+                                        .font(.headline)
+                                    
+                                    Text(formattedDateTime(checkOut.date))
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    
+                                    Text("Session RPE: \(checkOut.sessionRPE)/10")
+                                        .font(.subheadline)
+                                    
+                                    if !checkOut.injuryNotes.isEmpty {
+                                        Text("Notes: \(checkOut.injuryNotes)")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
+                                .padding(.vertical, 4)
+                            }
+                        }
+                    }
+                    
+                case .exercises:
+                    if historyEntries.isEmpty {
+                        Text("No exercise logs yet.")
+                            .foregroundColor(.secondary)
+                    } else {
+                        Section("Exercise Logs") {
+                            ForEach(historyEntries) { entry in
+                                NavigationLink {
+                                    HistoryDetailView(entry: entry)
+                                } label: {
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        Text(entry.exercise)
                                             .font(.headline)
                                         
-                                        Text(formattedDateTime(checkOut.date))
+                                        Text(entry.workoutTitle)
+                                            .font(.subheadline)
+                                            .foregroundColor(.secondary)
+                                        
+                                        Text(formattedDateTime(entry.date))
                                             .font(.caption)
                                             .foregroundColor(.secondary)
                                         
-                                        Text("Session RPE: \(checkOut.sessionRPE)/10")
-                                            .font(.subheadline)
+                                        Text(entry.details)
+                                            .foregroundColor(.secondary)
                                         
-                                        if !checkOut.injuryNotes.isEmpty {
-                                            Text("Notes: \(checkOut.injuryNotes)")
-                                                .font(.caption)
-                                                .foregroundColor(.secondary)
-                                        }
+                                        Text("Total: \(entry.totalReps) reps, \(Int(entry.totalVolume)) lb volume")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
                                     }
                                     .padding(.vertical, 4)
                                 }
                             }
                         }
-                        if !completedWorkouts.isEmpty {
-                            Section("Completed Workouts") {
-                                ForEach(completedWorkouts) { workout in
-                                    VStack(alignment: .leading) {
-                                        Text(workout.title)
-                                            .font(.headline)
-                                        
-                                        Text(formattedDateTime(workout.date))
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                    }
-                                }
-                            }
-                        }
-                        
-                        Section("Exercise Logs") {
-                            Button {
-                                showExerciseLogs.toggle()
-                            } label: {
-                                HStack {
-                                    Text(showExerciseLogs ? "Hide Exercise Logs" : "Show Exercise Logs")
-                                    Spacer()
-                                    Text("\(historyEntries.count)")
+                    }
+                    
+                case .prs:
+                    if appStore.prHistoryEntries.isEmpty {
+                        Text("No PRs recorded yet.")
+                            .foregroundColor(.secondary)
+                    } else {
+                        Section("PR History") {
+                            ForEach(appStore.prHistoryEntries) { pr in
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text(pr.exercise)
+                                        .font(.headline)
+
+                                    Text(pr.type)
+                                        .foregroundColor(.orange)
+
+                                    Text(pr.workoutTitle)
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+
+                                    Text(formattedDateTime(pr.date))
+                                        .font(.caption)
                                         .foregroundColor(.secondary)
                                 }
+                                .padding(.vertical, 4)
                             }
-                            
-                            if showExerciseLogs {
-                                ForEach(historyEntries) { entry in
-                                    NavigationLink {
-                                        HistoryDetailView(entry: entry)
-                                    } label: {
-                                        VStack(alignment: .leading, spacing: 8) {
-                                            Text(entry.exercise)
-                                                .font(.headline)
-                                            
-                                            Text(entry.workoutTitle)
-                                                .font(.subheadline)
-                                                .foregroundColor(.secondary)
-                                            
-                                            Text(formattedDateTime(entry.date))
-                                                .font(.caption)
-                                                .foregroundColor(.secondary)
-                                            
-                                            Text(entry.details)
-                                                .foregroundColor(.secondary)
-                                            
-                                            Text("Total: \(entry.totalReps) reps, \(Int(entry.totalVolume)) lbs volume")
-                                                .font(.caption)
-                                                .foregroundColor(.secondary)
-                                        }
-                                        .padding(.vertical, 4)
+                        }
+                    }
+                    
+                case .readiness:
+                    if checkIns.isEmpty {
+                        Text("No readiness check-ins yet.")
+                            .foregroundColor(.secondary)
+                    } else {
+                        Section("Readiness Check-Ins") {
+                            ForEach(checkIns) { checkIn in
+                                CheckInRowView(checkIn: checkIn)
+                            }
+                        }
+                    }
+                    
+                case .bodyweight:
+                    if appStore.bodyweightEntries.isEmpty {
+                        Text("No bodyweight entries yet.")
+                            .foregroundColor(.secondary)
+                    } else {
+                        Section("Bodyweight") {
+                            ForEach(appStore.bodyweightEntries, id: \.date) { entry in
+                                HStack {
+                                    VStack(alignment: .leading) {
+                                        Text(formattedDateTime(entry.date))
+                                            .font(.headline)
                                     }
+                                    
+                                    Spacer()
+                                    
+                                    Text("\(entry.weight, specifier: "%.1f") lb")
+                                        .foregroundColor(.secondary)
                                 }
                             }
                         }
@@ -3025,6 +3095,17 @@ struct WorkoutCheckOutView: View {
                             sessionRPE: sessionRPE,
                             injuryNotes: injuryNotes
                         )
+                        for pr in prs {
+                            let entry = PRHistoryEntry(
+                                id: UUID(),
+                                date: Date(),
+                                exercise: pr.exercise,
+                                type: pr.type,
+                                workoutTitle: appStore.todaysWorkoutTitle
+                            )
+
+                            appStore.prHistoryEntries.insert(entry, at: 0)
+                        }
                         
                         dismiss()
                     }
