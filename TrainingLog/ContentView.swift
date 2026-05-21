@@ -2105,6 +2105,22 @@ struct ActiveWorkoutView: View {
             return "\(Int(weight))"
         }
     }
+    func readinessAdjustedSuggestion(
+        previous: String,
+        suggested: String
+    ) -> String {
+        guard let readiness = latestReadinessScore(),
+              let previousWeight = Double(previous),
+              let suggestedWeight = Double(suggested) else {
+            return suggested
+        }
+
+        if readiness < 5 {
+            return "\(Int(previousWeight))"
+        }
+
+        return "\(Int(suggestedWeight))"
+    }
     
     func workoutBriefItems() -> [WorkoutBriefItem] {
         appStore.todaysExercises.map { exercise in
@@ -2147,7 +2163,13 @@ struct ActiveWorkoutView: View {
                 }
                 
             } else {
-                suggested = suggestedRaw.isEmpty ? "No history" : suggestedRaw
+                let readinessAdjusted =
+                readinessAdjustedSuggestion(
+                    previous: previous,
+                    suggested: suggestedRaw
+                )
+
+                suggested = suggestedRaw.isEmpty ? "No history" : readinessAdjusted
                 
                 let changed = previous != suggested && !previous.isEmpty
                 
@@ -2272,10 +2294,19 @@ struct ActiveWorkoutView: View {
         let high = rangeParts[1]
         
         if reps >= high && rpe <= 6 {
+            if let readiness = latestReadinessScore(),
+               readiness < 5 {
+                suggestedNextWeight = ""
+                suggestionNeedsChoice = false
+                weightSuggestion = ""
+                return
+            }
+
             let suggested = Int(weight + 10)
             suggestedNextWeight = "\(suggested)"
             suggestionNeedsChoice = true
             weightSuggestion = "This looked easy. Increase to \(suggested) next set."
+            
         } else if reps >= low && reps <= high && rpe >= 7 && rpe <= 8 {
             suggestedNextWeight = "\(Int(weight))"
             suggestionNeedsChoice = false
