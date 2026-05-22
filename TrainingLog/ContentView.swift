@@ -10,6 +10,32 @@ import Observation
 import Charts
 internal import Combine
 
+extension Color {
+    static let appBackground = Color(red: 0.07, green: 0.08, blue: 0.09)
+    static let appCard = Color(red: 0.13, green: 0.14, blue: 0.16)
+    static let appCardSecondary = Color(red: 0.18, green: 0.19, blue: 0.22)
+
+    static let appPrimary = Color(red: 0.28, green: 0.45, blue: 0.62)
+    static let appAccent = Color(red: 0.90, green: 0.38, blue: 0.14)
+
+    static let appTextPrimary = Color.white
+    static let appTextSecondary = Color(red: 0.72, green: 0.75, blue: 0.78)
+}
+struct AppCardModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .padding()
+            .background(Color.appCard)
+            .cornerRadius(18)
+    }
+}
+
+extension View {
+    func appCard() -> some View {
+        self.modifier(AppCardModifier())
+    }
+}
+
 struct WorkoutSetEntry: Identifiable, Codable {
     let id: UUID
     let setNumber: Int
@@ -2089,13 +2115,13 @@ struct ActiveWorkoutView: View {
     var totalWorkoutSets: Int {
         completedWorkoutSets.count
     }
-
+    
     var totalWorkoutReps: Int {
         completedWorkoutSets
             .compactMap { Int($0.reps) }
             .reduce(0, +)
     }
-
+    
     var totalWorkoutVolume: Int {
         completedWorkoutSets.reduce(0) { total, set in
             let weight = Int(set.weight) ?? 0
@@ -2103,7 +2129,7 @@ struct ActiveWorkoutView: View {
             return total + (weight * reps)
         }
     }
-
+    
     var averageWorkoutRPE: Double {
         let rpes = completedWorkoutSets.compactMap { Double($0.rpe) }
         guard !rpes.isEmpty else { return 0 }
@@ -2131,7 +2157,7 @@ struct ActiveWorkoutView: View {
         guard let readiness = latestReadinessScore() else {
             return "No readiness data yet."
         }
-
+        
         if readiness >= 8 {
             return "Readiness is high today. Get after it."
         } else if readiness >= 5 {
@@ -2184,11 +2210,11 @@ struct ActiveWorkoutView: View {
               let suggestedWeight = Double(suggested) else {
             return suggested
         }
-
+        
         if readiness < 5 {
             return "\(Int(previousWeight))"
         }
-
+        
         return "\(Int(suggestedWeight))"
     }
     
@@ -2238,7 +2264,7 @@ struct ActiveWorkoutView: View {
                     previous: previous,
                     suggested: suggestedRaw
                 )
-
+                
                 suggested = suggestedRaw.isEmpty ? "No history" : readinessAdjusted
                 
                 let changed = previous != suggested && !previous.isEmpty
@@ -2371,7 +2397,7 @@ struct ActiveWorkoutView: View {
                 weightSuggestion = ""
                 return
             }
-
+            
             let suggested = Int(weight + 10)
             suggestedNextWeight = "\(suggested)"
             suggestionNeedsChoice = true
@@ -2395,38 +2421,38 @@ struct ActiveWorkoutView: View {
     func workoutPRs() -> [WorkoutPR] {
         var prs: [WorkoutPR] = []
         var seenPRs = Set<String>()
-
+        
         for entry in appStore.historyEntries {
             guard let exercise = appStore.todaysExercises.first(
                 where: { $0.name == entry.exercise }
             ) else {
                 continue
             }
-
+            
             let exerciseSets =
             completedWorkoutSetsByExercise[
                 entry.exercise
             ] ?? []
-
+            
             guard !exerciseSets.isEmpty else {
                 continue
             }
-
+            
             switch exercise.category {
             case .mainLift:
                 let currentBestWeight =
                 exerciseSets
                     .compactMap { Double($0.weight) }
                     .max() ?? 0
-
+                
                 let previousBestWeight =
                 entry.sets
                     .compactMap { Double($0.weight) }
                     .max() ?? 0
-
+                
                 if currentBestWeight > previousBestWeight {
                     let key = "\(entry.exercise)-Weight"
-
+                    
                     if !seenPRs.contains(key) {
                         prs.append(
                             WorkoutPR(
@@ -2434,11 +2460,11 @@ struct ActiveWorkoutView: View {
                                 type: "Weight PR"
                             )
                         )
-
+                        
                         seenPRs.insert(key)
                     }
                 }
-
+                
             case .accessory:
                 let currentVolume =
                 exerciseSets.reduce(0) { total, set in
@@ -2446,17 +2472,17 @@ struct ActiveWorkoutView: View {
                     let reps = Double(set.reps) ?? 0
                     return total + (weight * reps)
                 }
-
+                
                 let previousVolume =
                 entry.sets.reduce(0) { total, set in
                     let weight = Double(set.weight) ?? 0
                     let reps = Double(set.reps) ?? 0
                     return total + (weight * reps)
                 }
-
+                
                 if currentVolume > previousVolume {
                     let key = "\(entry.exercise)-Volume"
-
+                    
                     if !seenPRs.contains(key) {
                         prs.append(
                             WorkoutPR(
@@ -2464,25 +2490,25 @@ struct ActiveWorkoutView: View {
                                 type: "Volume PR"
                             )
                         )
-
+                        
                         seenPRs.insert(key)
                     }
                 }
-
+                
             case .bodyweight:
                 let currentBestReps =
                 exerciseSets
                     .compactMap { Int($0.reps) }
                     .max() ?? 0
-
+                
                 let previousBestReps =
                 entry.sets
                     .compactMap { Int($0.reps) }
                     .max() ?? 0
-
+                
                 if currentBestReps > previousBestReps {
                     let key = "\(entry.exercise)-Rep"
-
+                    
                     if !seenPRs.contains(key) {
                         prs.append(
                             WorkoutPR(
@@ -2490,16 +2516,16 @@ struct ActiveWorkoutView: View {
                                 type: "Rep PR"
                             )
                         )
-
+                        
                         seenPRs.insert(key)
                     }
                 }
-
+                
             case .conditioning:
                 continue
             }
         }
-
+        
         return prs
     }
     func clearInputs() {
@@ -2620,7 +2646,7 @@ struct ActiveWorkoutView: View {
                         }
                     }
                     .padding()
-                    .background(Color(.systemGray6))
+                    .background(Color.appCard)
                     .cornerRadius(12)
                     
                     Spacer()
@@ -2656,15 +2682,15 @@ struct ActiveWorkoutView: View {
                                 advanceWorkout()
                             } else if suggestionNeedsChoice &&
                                         !suggestedNextWeight
-                                            .trimmingCharacters(
-                                                in: .whitespacesAndNewlines
-                                            )
-                                            .isEmpty {
-
+                                .trimmingCharacters(
+                                    in: .whitespacesAndNewlines
+                                )
+                                    .isEmpty {
+                                
                                 showSuggestionCard = true
-
+                                
                             } else {
-
+                                
                                 continueAfterSuggestion()
                             }
                             
@@ -2738,7 +2764,7 @@ struct ActiveWorkoutView: View {
                                 Text("Apply")
                                     .frame(maxWidth: .infinity)
                                     .padding()
-                                    .background(Color.blue)
+                                    .background(Color.appPrimary)
                                     .foregroundColor(.white)
                                     .cornerRadius(12)
                             }
@@ -2766,63 +2792,76 @@ struct ActiveWorkoutView: View {
             }
             .sheet(isPresented: $showWorkoutBrief) {
                 NavigationStack {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 24) {
-                            Text("Workout Brief")
-                                .font(.largeTitle)
-                                .fontWeight(.bold)
-                            
-                            VStack(alignment: .leading, spacing: 8) {
-                                if let readiness = latestReadinessScore() {
-                                    Text("Readiness: \(readiness, specifier: "%.1f")/10")
-                                        .font(.headline)
-                                }
-
-                                Text(readinessRecommendationText())
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                            }
-                            .padding()
-                            .background(Color(.systemGray6))
-                            .cornerRadius(12)
-                            
-                            ForEach(workoutBriefItems()) { item in
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text(item.exercise.name)
-                                        .font(.headline)
-                                    
-                                    Text(item.suggestedWeight)
-                                        .font(.title2)
-                                        .fontWeight(.bold)
-                                    
-                                    if !item.previousWeight.isEmpty {
-                                        Text("Last: \(item.previousWeight)")
-                                            .foregroundColor(.secondary)
-                                    }
-                                    
-                                    Text(item.recommendation)
-                                    
-                                    if item.showReason {
-                                        Text(item.reason)
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
+                    ZStack {
+                        Color.appBackground
+                            .ignoresSafeArea()
+                        
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: 24) {
+                                
+                                Text("Workout Brief")
+                                    .font(.system(size: 44, weight: .bold))
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.appTextPrimary)
+                                
+                                VStack(alignment: .leading, spacing: 12) {
+                                    if let readiness = latestReadinessScore() {
+                                        Text("Readiness: \(readiness, specifier: "%.1f")/10")
+                                            .font(.headline)
+                                            .foregroundColor(.appTextPrimary)
+                                        
+                                        Text(readinessRecommendationText())
+                                            .foregroundColor(.appTextSecondary)
                                     }
                                 }
                                 .padding()
-                                .background(Color(.systemGray6))
+                                .background(Color.appCard)
+                                .cornerRadius(12)
+                                
+                                ForEach(workoutBriefItems()) { item in
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        
+                                        Text(item.exercise.name)
+                                            .font(.headline)
+                                            .foregroundColor(.appTextPrimary)
+                                        
+                                        Text(item.suggestedWeight)
+                                            .font(.title2)
+                                            .fontWeight(.bold)
+                                            .foregroundColor(.appTextPrimary)
+                                        
+                                        if !item.previousWeight.isEmpty {
+                                            Text("Last: \(item.previousWeight)")
+                                                .foregroundColor(.appTextSecondary)
+                                        }
+                                        
+                                        Text(item.recommendation)
+                                            .foregroundColor(.appTextPrimary)
+                                        
+                                        if item.showReason {
+                                            Text(item.reason)
+                                                .font(.caption)
+                                                .foregroundColor(.appTextSecondary)
+                                        }
+                                    }
+                                    .padding()
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(Color.appCard)
+                                    .cornerRadius(16)
+                                }
+                                
+                                Button("Let's Train.") {
+                                    showWorkoutBrief = false
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.appPrimary)
+                                .foregroundColor(.white)
                                 .cornerRadius(12)
                             }
-                            
-                            Button("Got it, let's train.") {
-                                showWorkoutBrief = false
-                            }
-                            .frame(maxWidth: .infinity)
                             .padding()
-                            .background(Color.blue)
-                            .foregroundColor(.white)
-                            .cornerRadius(12)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
-                        .padding()
                     }
                 }
             }
@@ -2832,7 +2871,7 @@ struct ActiveWorkoutView: View {
                    weight.isEmpty {
                     weight = suggestedStartWeightFromHistory(step.exercise)
                 }
-                
+
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                     showWorkoutBrief = true
                 }
@@ -2855,7 +2894,7 @@ struct SummaryRow: View {
                 .font(.headline)
         }
         .padding()
-        .background(Color(.systemGray6))
+        .background(Color.appCard)
         .cornerRadius(12)
     }
 }
