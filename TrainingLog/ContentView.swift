@@ -2243,7 +2243,7 @@ struct ActiveWorkoutView: View {
                 let lastRepNumber = Int(lastReps) ?? 0
                 
                 let goal = rangeParts.last ?? (
-                    lastRepNumber > 0 ? lastRepNumber + 1 : 0
+                    lastRepNumber > 0 ? lastRepNumber + 1 : 5
                 )
                 
                 suggested = "Goal: \(goal) reps"
@@ -2253,7 +2253,7 @@ struct ActiveWorkoutView: View {
                     reason = "Last: \(last) reps"
                     showReason = true
                 } else {
-                    recommendation = "Maintain"
+                    recommendation = ""
                     reason = lastReps.isEmpty ? "" : "Last: \(lastReps) reps"
                     showReason = !lastReps.isEmpty
                 }
@@ -2269,7 +2269,7 @@ struct ActiveWorkoutView: View {
                 
                 let changed = previous != suggested && !previous.isEmpty
                 
-                recommendation = changed ? "\(suggested) recommended" : "Maintain"
+                recommendation = changed ? "\(suggested) recommended" : ""
                 
                 if changed {
                     let matchingEntries = appStore.historyEntries
@@ -2635,9 +2635,31 @@ struct ActiveWorkoutView: View {
                             .textFieldStyle(.roundedBorder)
                             .keyboardType(.numberPad)
                         
-                        TextField("RPE", text: $rpe)
-                            .textFieldStyle(.roundedBorder)
-                            .keyboardType(.decimalPad)
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("RPE")
+                                .font(.headline)
+                                .foregroundColor(.appTextPrimary)
+
+                            HStack {
+                                ForEach(5...10, id: \.self) { value in
+
+                                    Button {
+                                        rpe = "\(value)"
+                                    } label: {
+                                        Text("\(value)")
+                                            .frame(maxWidth: .infinity)
+                                            .padding(.vertical, 10)
+                                            .background(
+                                                rpe == "\(value)"
+                                                ? Color.appPrimary
+                                                : Color.appCardSecondary
+                                            )
+                                            .foregroundColor(.white)
+                                            .cornerRadius(10)
+                                    }
+                                }
+                            }
+                        }
                         
                         if !weightSuggestion.isEmpty {
                             Text(weightSuggestion)
@@ -2825,18 +2847,32 @@ struct ActiveWorkoutView: View {
                                             .font(.headline)
                                             .foregroundColor(.appTextPrimary)
                                         
-                                        Text(item.suggestedWeight)
-                                            .font(.title2)
-                                            .fontWeight(.bold)
-                                            .foregroundColor(.appTextPrimary)
-                                        
-                                        if !item.previousWeight.isEmpty {
-                                            Text("Last: \(item.previousWeight)")
+                                        VStack(alignment: .leading, spacing: 4) {
+
+                                            Text("Suggested")
+                                                .font(.caption)
                                                 .foregroundColor(.appTextSecondary)
+
+                                            Text(item.suggestedWeight)
+                                                .font(.title)
+                                                .fontWeight(.bold)
+                                                .foregroundColor(.appTextPrimary)
+
+                                            if !item.previousWeight.isEmpty {
+
+                                                Text("Last")
+                                                    .font(.caption)
+                                                    .foregroundColor(.appTextSecondary)
+
+                                                Text(item.previousWeight)
+                                                    .foregroundColor(.appTextPrimary)
+                                            }
                                         }
                                         
-                                        Text(item.recommendation)
-                                            .foregroundColor(.appTextPrimary)
+                                        if !item.recommendation.isEmpty {
+                                            Text(item.recommendation)
+                                                .foregroundColor(.appTextPrimary)
+                                        }
                                         
                                         if item.showReason {
                                             Text(item.reason)
