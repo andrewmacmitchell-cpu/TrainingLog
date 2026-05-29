@@ -155,17 +155,20 @@ struct WorkoutBriefItem: Identifiable {
 
     let reason: String
 }
+
 struct WorkoutPR: Identifiable {
     let id = UUID()
-
     let exercise: String
     let type: String
+    let value: String
 }
+
 struct PRHistoryEntry: Identifiable, Codable {
     let id: UUID
     let date: Date
     let exercise: String
     let type: String
+    let value: String
     let workoutTitle: String
 }
 enum BJJSessionType: String, Codable, CaseIterable {
@@ -1237,7 +1240,12 @@ struct TodayView: View {
                 AddExerciseView(appStore: appStore)
             }
             .sheet(isPresented: $showActiveWorkout) {
-                WorkoutCheckInView(appStore: appStore)
+                WorkoutCheckInView(
+                    appStore: appStore,
+                    onFinish: {
+                        showActiveWorkout = false
+                    }
+                )
             }
             .sheet(isPresented: $showSaveTemplateSheet) {
                 SaveTemplateView(appStore: appStore)
@@ -1251,21 +1259,23 @@ struct CheckInRowView: View {
     var body: some View {
         let readinessText = String(format: "%.1f", checkIn.readinessAverage)
         
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             Text(checkIn.workoutTitle)
                 .font(.headline)
+                .foregroundColor(.appTextPrimary)
             
             Text(formattedDateTime(checkIn.date))
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundColor(.appTextSecondary)
             
             Text("Readiness: \(readinessText)/10")
                 .font(.subheadline)
+                .foregroundColor(.appTextSecondary)
             
             if !checkIn.bodyweight.isEmpty {
                 Text("Bodyweight: \(checkIn.bodyweight) lbs")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(.appTextSecondary)
             }
         }
         .padding(.vertical, 4)
@@ -1302,18 +1312,29 @@ struct HistoryView: View {
                 case .workouts:
                     if completedWorkouts.isEmpty {
                         Text("No completed workouts yet.")
-                            .foregroundColor(.secondary)
+                            .foregroundColor(.appTextSecondary)
+                            .padding()
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.appCard)
+                            .cornerRadius(16)
+                            .listRowBackground(Color.appBackground)
                     } else {
                         Section("Completed Workouts") {
                             ForEach(completedWorkouts) { workout in
-                                VStack(alignment: .leading) {
+                                VStack(alignment: .leading, spacing: 8) {
+
                                     Text(workout.title)
-                                        .font(.headline)
-                                    
+                                        .foregroundColor(.appTextPrimary)
+
                                     Text(formattedDateTime(workout.date))
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
+                                        .foregroundColor(.appTextSecondary)
+
                                 }
+                                .padding()
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Color.appCard)
+                                .cornerRadius(16)
+                                .listRowBackground(Color.appBackground)
                             }
                         }
                     }
@@ -1323,14 +1344,13 @@ struct HistoryView: View {
                             ForEach(checkOuts) { checkOut in
                                 VStack(alignment: .leading, spacing: 6) {
                                     Text(checkOut.workoutTitle)
-                                        .font(.headline)
-                                    
+                                        .foregroundColor(.appTextPrimary)
+
                                     Text(formattedDateTime(checkOut.date))
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                    
+                                        .foregroundColor(.appTextSecondary)
+
                                     Text("Session RPE: \(checkOut.sessionRPE)/10")
-                                        .font(.subheadline)
+                                        .foregroundColor(.appTextSecondary)
                                     
                                     if !checkOut.injuryNotes.isEmpty {
                                         Text("Notes: \(checkOut.injuryNotes)")
@@ -1338,7 +1358,11 @@ struct HistoryView: View {
                                             .foregroundColor(.secondary)
                                     }
                                 }
-                                .padding(.vertical, 4)
+                                .padding()
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Color.appCard)
+                                .cornerRadius(16)
+                                .listRowBackground(Color.appBackground)
                             }
                         }
                     }
@@ -1346,7 +1370,12 @@ struct HistoryView: View {
                 case .exercises:
                     if historyEntries.isEmpty {
                         Text("No exercise logs yet.")
-                            .foregroundColor(.secondary)
+                            .foregroundColor(.appTextSecondary)
+                            .padding()
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.appCard)
+                            .cornerRadius(16)
+                            .listRowBackground(Color.appBackground)
                     } else {
                         Section("Exercise Logs") {
                             ForEach(historyEntries) { entry in
@@ -1354,26 +1383,32 @@ struct HistoryView: View {
                                     HistoryDetailView(entry: entry)
                                 } label: {
                                     VStack(alignment: .leading, spacing: 8) {
+
                                         Text(entry.exercise)
                                             .font(.headline)
-                                        
+                                            .foregroundColor(.appTextPrimary)
+
                                         Text(entry.workoutTitle)
-                                            .font(.subheadline)
-                                            .foregroundColor(.secondary)
-                                        
+                                            .foregroundColor(.appTextSecondary)
+
                                         Text(formattedDateTime(entry.date))
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                        
+                                            .foregroundColor(.appTextSecondary)
+
                                         Text(entry.details)
-                                            .foregroundColor(.secondary)
-                                        
+                                            .font(.subheadline)
+                                            .fontWeight(.medium)
+                                            .foregroundColor(.appTextPrimary)
+
                                         Text("Total: \(entry.totalReps) reps, \(Int(entry.totalVolume)) lb volume")
                                             .font(.caption)
-                                            .foregroundColor(.secondary)
+                                            .foregroundColor(.appTextSecondary)
                                     }
-                                    .padding(.vertical, 4)
+                                    .padding()
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(Color.appCard)
+                                    .cornerRadius(16)
                                 }
+                                .listRowBackground(Color.appBackground)
                             }
                         }
                     }
@@ -1381,26 +1416,43 @@ struct HistoryView: View {
                 case .prs:
                     if appStore.prHistoryEntries.isEmpty {
                         Text("No PRs recorded yet.")
-                            .foregroundColor(.secondary)
+                            .foregroundColor(.appTextSecondary)
+                            .padding()
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.appCard)
+                            .cornerRadius(16)
+                            .listRowBackground(Color.appBackground)
                     } else {
                         Section("PR History") {
                             ForEach(appStore.prHistoryEntries) { pr in
-                                VStack(alignment: .leading, spacing: 6) {
+                                VStack(alignment: .leading, spacing: 8) {
+
+                                    Text(pr.type.uppercased())
+                                        .font(.caption)
+                                        .fontWeight(.bold)
+                                        .foregroundColor(.appAccent)
+
                                     Text(pr.exercise)
                                         .font(.headline)
-
-                                    Text(pr.type)
-                                        .foregroundColor(.orange)
+                                        .foregroundColor(.appTextPrimary)
+                                    
+                                    Text(pr.value)
+                                        .font(.title2)
+                                        .fontWeight(.bold)
+                                        .foregroundColor(.appTextPrimary)
 
                                     Text(pr.workoutTitle)
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
+                                        .foregroundColor(.appTextSecondary)
 
                                     Text(formattedDateTime(pr.date))
                                         .font(.caption)
-                                        .foregroundColor(.secondary)
+                                        .foregroundColor(.appTextSecondary)
                                 }
-                                .padding(.vertical, 4)
+                                .padding()
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Color.appCard)
+                                .cornerRadius(16)
+                                .listRowBackground(Color.appBackground)
                             }
                         }
                     }
@@ -1408,11 +1460,21 @@ struct HistoryView: View {
                 case .readiness:
                     if checkIns.isEmpty {
                         Text("No readiness check-ins yet.")
-                            .foregroundColor(.secondary)
+                            .foregroundColor(.appTextSecondary)
+                            .padding()
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.appCard)
+                            .cornerRadius(16)
+                            .listRowBackground(Color.appBackground)
                     } else {
                         Section("Readiness Check-Ins") {
                             ForEach(checkIns) { checkIn in
                                 CheckInRowView(checkIn: checkIn)
+                                    .padding()
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(Color.appCard)
+                                    .cornerRadius(16)
+                                    .listRowBackground(Color.appBackground)
                             }
                         }
                     }
@@ -1420,7 +1482,12 @@ struct HistoryView: View {
                 case .bodyweight:
                     if appStore.bodyweightEntries.isEmpty {
                         Text("No bodyweight entries yet.")
-                            .foregroundColor(.secondary)
+                            .foregroundColor(.appTextSecondary)
+                            .padding()
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.appCard)
+                            .cornerRadius(16)
+                            .listRowBackground(Color.appBackground)
                     } else {
                         Section("Bodyweight") {
                             ForEach(appStore.bodyweightEntries, id: \.date) { entry in
@@ -1440,6 +1507,8 @@ struct HistoryView: View {
                     }
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(Color.appBackground)
             .navigationTitle("History")
         }
     }
@@ -2073,6 +2142,8 @@ struct ActiveWorkoutView: View {
     @State private var completedWorkoutSets: [WorkoutSetEntry] = []
     @State private var completedWorkoutSetsByExercise: [String: [WorkoutSetEntry]] = [:]
     
+    let onFinish: () -> Void
+    
     var workoutSteps: [ActiveWorkoutStep] {
         let exercises = appStore.todaysExercises
         var steps: [ActiveWorkoutStep] = []
@@ -2457,7 +2528,8 @@ struct ActiveWorkoutView: View {
                         prs.append(
                             WorkoutPR(
                                 exercise: entry.exercise,
-                                type: "Weight PR"
+                                type: "Weight PR",
+                                value: "\(Int(currentBestWeight)) lb"
                             )
                         )
                         
@@ -2487,7 +2559,8 @@ struct ActiveWorkoutView: View {
                         prs.append(
                             WorkoutPR(
                                 exercise: entry.exercise,
-                                type: "Volume PR"
+                                type: "Volume PR",
+                                value: "\(Int(currentVolume)) lb volume"
                             )
                         )
                         
@@ -2513,7 +2586,8 @@ struct ActiveWorkoutView: View {
                         prs.append(
                             WorkoutPR(
                                 exercise: entry.exercise,
-                                type: "Rep PR"
+                                type: "Rep PR",
+                                value: "\(currentBestReps) reps"
                             )
                         )
                         
@@ -2529,7 +2603,11 @@ struct ActiveWorkoutView: View {
         return prs
     }
     func clearInputs() {
-        reps = ""
+        if let nextStep = currentStep {
+            reps = defaultRepStart(for: nextStep.exercise)
+        } else {
+            reps = ""
+        }
         rpe = ""
         
         if let nextStep = currentStep {
@@ -2543,6 +2621,48 @@ struct ActiveWorkoutView: View {
         } else {
             weight = ""
         }
+    }
+    func defaultRepStart(for exercise: ExerciseItem) -> String {
+
+        if exercise.category == .bodyweight {
+
+            let matchingEntries = appStore.historyEntries
+                .filter {
+                    $0.exercise == exercise.name
+                }
+                .sorted {
+                    $0.date > $1.date
+                }
+
+            let lastReps =
+            Int(
+                matchingEntries
+                    .first?
+                    .sets
+                    .last?
+                    .reps ?? ""
+            ) ?? 0
+
+            if lastReps > 0 {
+                return "\(lastReps + 1)"
+            }
+        }
+
+        let rangeParts = exercise.targetRepRange
+            .split(separator: "-")
+            .compactMap {
+                Int(
+                    $0.trimmingCharacters(
+                        in: .whitespaces
+                    )
+                )
+            }
+
+        if let low = rangeParts.first {
+            return "\(low)"
+        }
+
+        return ""
     }
     
     func advanceWorkout() {
@@ -2631,9 +2751,43 @@ struct ActiveWorkoutView: View {
                         .textFieldStyle(.roundedBorder)
                         .keyboardType(.decimalPad)
                         
-                        TextField("Reps", text: $reps)
-                            .textFieldStyle(.roundedBorder)
-                            .keyboardType(.numberPad)
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Reps")
+                                .font(.headline)
+                                .foregroundColor(.appTextPrimary)
+
+                            HStack {
+                                Button {
+                                    let current = Int(reps) ?? 0
+                                    reps = "\(max(0, current - 1))"
+                                } label: {
+                                    Text("-")
+                                        .font(.title2)
+                                        .frame(width: 56, height: 44)
+                                        .background(Color.appCardSecondary)
+                                        .foregroundColor(.white)
+                                        .cornerRadius(10)
+                                }
+
+                                Text(reps.isEmpty ? "0" : reps)
+                                    .font(.title2)
+                                    .fontWeight(.bold)
+                                    .frame(maxWidth: .infinity)
+                                    .foregroundColor(.appTextPrimary)
+
+                                Button {
+                                    let current = Int(reps) ?? 0
+                                    reps = "\(current + 1)"
+                                } label: {
+                                    Text("+")
+                                        .font(.title2)
+                                        .frame(width: 56, height: 44)
+                                        .background(Color.appPrimary)
+                                        .foregroundColor(.white)
+                                        .cornerRadius(10)
+                                }
+                            }
+                        }
                         
                         VStack(alignment: .leading, spacing: 8) {
                             Text("RPE")
@@ -2753,7 +2907,11 @@ struct ActiveWorkoutView: View {
                     totalReps: totalWorkoutReps,
                     totalVolume: totalWorkoutVolume,
                     averageRPE: averageWorkoutRPE,
-                    prs: workoutPRs()
+                    prs: workoutPRs(),
+                    onFinish: {
+                        dismiss()
+                        onFinish()
+                    }
                 )
             }
             .sheet(isPresented: $showSuggestionCard) {
@@ -2903,12 +3061,24 @@ struct ActiveWorkoutView: View {
             }
             .onAppear {
                 if let step = currentStep,
-                   step.setNumber == 1,
-                   weight.isEmpty {
-                    weight = suggestedStartWeightFromHistory(step.exercise)
+                   step.setNumber == 1 {
+
+                    if weight.isEmpty {
+                        weight = suggestedStartWeightFromHistory(
+                            step.exercise
+                        )
+                    }
+
+                    if reps.isEmpty {
+                        reps = defaultRepStart(
+                            for: step.exercise
+                        )
+                    }
                 }
 
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                DispatchQueue.main.asyncAfter(
+                    deadline: .now() + 0.3
+                ) {
                     showWorkoutBrief = true
                 }
             }
@@ -2991,6 +3161,8 @@ struct WorkoutCheckInView: View {
     
     @State private var showActiveWorkout = false
     
+    let onFinish: () -> Void
+    
     var body: some View {
         NavigationStack {
             Form {
@@ -3032,7 +3204,13 @@ struct WorkoutCheckInView: View {
                 }
             }
             .sheet(isPresented: $showActiveWorkout) {
-                ActiveWorkoutView(appStore: appStore)
+                ActiveWorkoutView(
+                    appStore: appStore,
+                    onFinish: {
+                        dismiss()
+                        onFinish()
+                    }
+                )
             }
             
         }
@@ -3091,11 +3269,14 @@ struct WorkoutCheckOutView: View {
     let totalVolume: Int
     let averageRPE: Double
     let prs: [WorkoutPR]
+    let onFinish: () -> Void
     
     @Environment(\.dismiss) private var dismiss
     
     @State private var sessionRPE = 7
     @State private var injuryNotes = ""
+    @State private var showWorkoutSummary = false
+    @State private var completedWorkoutPRs: [WorkoutPR] = []
     
     var body: some View {
         NavigationStack {
@@ -3114,25 +3295,26 @@ struct WorkoutCheckOutView: View {
                         axis: .vertical
                     )
                 }
-                Section("Workout Summary") {
-                    if !prs.isEmpty {
+                if !prs.isEmpty {
 
-                        Section("PRs Hit") {
+                    Section("PRs Hit") {
 
-                            ForEach(prs) { pr in
+                        ForEach(prs) { pr in
 
-                                HStack {
+                            HStack {
 
-                                    Text(pr.exercise)
+                                Text(pr.exercise)
 
-                                    Spacer()
+                                Spacer()
 
-                                    Text(pr.type)
-                                        .foregroundColor(.orange)
-                                }
+                                Text(pr.type)
+                                    .foregroundColor(.orange)
                             }
                         }
                     }
+                }
+                Section("Workout Summary") {
+        
                     HStack {
                         Text("Sets Completed")
                         Spacer()
@@ -3166,6 +3348,9 @@ struct WorkoutCheckOutView: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save Session") {
+                        
+                        completedWorkoutPRs = prs
+                        
                         appStore.addCheckOut(
                             sessionRPE: sessionRPE,
                             injuryNotes: injuryNotes
@@ -3176,15 +3361,50 @@ struct WorkoutCheckOutView: View {
                                 date: Date(),
                                 exercise: pr.exercise,
                                 type: pr.type,
+                                value: pr.value,
                                 workoutTitle: appStore.todaysWorkoutTitle
                             )
 
                             appStore.prHistoryEntries.insert(entry, at: 0)
                         }
                         
-                        dismiss()
+                        showWorkoutSummary = true
                     }
                 }
+            }
+            .sheet(isPresented: $showWorkoutSummary) {
+
+                VStack(spacing: 24) {
+
+                    Text("Workout Complete")
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+
+                    Text(appStore.todaysWorkoutTitle)
+                        .font(.title2)
+
+                    Text("\(completedWorkoutPRs.count) PRs Earned")
+
+                    ForEach(completedWorkoutPRs) { pr in
+                        VStack {
+                            Text(pr.type)
+                                .font(.caption)
+
+                            Text(pr.exercise)
+
+                            Text(pr.value)
+                                .fontWeight(.bold)
+                        }
+                    }
+
+                    Button("Done") {
+                        showWorkoutSummary = false
+                        dismiss()
+                        onFinish()
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+                .padding()
             }
         }
     }
