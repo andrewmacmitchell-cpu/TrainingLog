@@ -1288,6 +1288,123 @@ enum HistoryTab: String, CaseIterable {
     case readiness = "Readiness"
     case bodyweight = "Bodyweight"
 }
+struct WorkoutHistoryDetailView: View {
+    let workout: WorkoutCompleteEntry
+    @Bindable var appStore: AppStore
+
+    var workoutEntries: [WorkoutHistoryEntry] {
+        appStore.historyEntries.filter {
+            $0.workoutTitle == workout.title &&
+            Calendar.current.isDate($0.date, inSameDayAs: workout.date)
+        }
+    }
+
+    var workoutPRs: [PRHistoryEntry] {
+        appStore.prHistoryEntries.filter {
+            $0.workoutTitle == workout.title &&
+            Calendar.current.isDate($0.date, inSameDayAs: workout.date)
+        }
+    }
+
+    var totalSets: Int {
+        workoutEntries.reduce(0) { total, entry in
+            total + entry.sets.count
+        }
+    }
+
+    var totalReps: Int {
+        workoutEntries.reduce(0) { total, entry in
+            total + entry.totalReps
+        }
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                Text(workout.title)
+                    .font(.system(size: 40, weight: .bold))
+                    .foregroundColor(.appTextPrimary)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Completed")
+                        .font(.caption)
+                        .foregroundColor(.appTextSecondary)
+
+                    Text(formattedDateTime(workout.date))
+                        .foregroundColor(.appTextPrimary)
+
+                    Text("Sets: \(totalSets)")
+                        .foregroundColor(.appTextSecondary)
+
+                    Text("Reps: \(totalReps)")
+                        .foregroundColor(.appTextSecondary)
+                }
+                .padding()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.appCard)
+                .cornerRadius(16)
+
+                if !workoutPRs.isEmpty {
+                    Text("PRs Earned")
+                        .font(.headline)
+                        .foregroundColor(.appTextSecondary)
+
+                    ForEach(workoutPRs) { pr in
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(pr.type.uppercased())
+                                .font(.caption)
+                                .fontWeight(.bold)
+                                .foregroundColor(.appAccent)
+
+                            Text(pr.exercise)
+                                .font(.headline)
+                                .foregroundColor(.appTextPrimary)
+
+                            Text(pr.value)
+                                .font(.title2)
+                                .fontWeight(.bold)
+                                .foregroundColor(.appTextPrimary)
+                        }
+                        .padding()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.appCard)
+                        .cornerRadius(16)
+                    }
+                }
+
+                Text("Exercises")
+                    .font(.headline)
+                    .foregroundColor(.appTextSecondary)
+
+                ForEach(workoutEntries) { entry in
+                    NavigationLink {
+                        HistoryDetailView(entry: entry)
+                    } label: {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(entry.exercise)
+                                .font(.headline)
+                                .foregroundColor(.appTextPrimary)
+
+                            Text(entry.details)
+                                .foregroundColor(.appTextSecondary)
+
+                            Text("\(entry.totalReps) reps")
+                                .foregroundColor(.appTextSecondary)
+                        }
+                        .padding()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.appCard)
+                        .cornerRadius(16)
+                    }
+                }
+            }
+            .padding()
+        }
+        .background(Color.appBackground.ignoresSafeArea())
+        .navigationTitle("Workout Detail")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
 struct HistoryView: View {
     @Bindable var appStore: AppStore
     @State private var selectedHistoryTab: HistoryTab = .workouts
@@ -1321,20 +1438,27 @@ struct HistoryView: View {
                     } else {
                         Section("Completed Workouts") {
                             ForEach(completedWorkouts) { workout in
-                                VStack(alignment: .leading, spacing: 8) {
-
-                                    Text(workout.title)
-                                        .foregroundColor(.appTextPrimary)
-
-                                    Text(formattedDateTime(workout.date))
-                                        .foregroundColor(.appTextSecondary)
-
+                                
+                                NavigationLink {
+                                    WorkoutHistoryDetailView(
+                                        workout: workout,
+                                        appStore: appStore
+                                    )
+                                } label: {
+                                    
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        
+                                        Text(workout.title)
+                                            .foregroundColor(.appTextPrimary)
+                                        
+                                        Text(formattedDateTime(workout.date))
+                                            .foregroundColor(.appTextSecondary)
+                                    }
+                                    .padding()
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(Color.appCard)
+                                    .cornerRadius(16)
                                 }
-                                .padding()
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(Color.appCard)
-                                .cornerRadius(16)
-                                .listRowBackground(Color.appBackground)
                             }
                         }
                     }
@@ -1517,45 +1641,66 @@ struct HistoryDetailView: View {
     let entry: WorkoutHistoryEntry
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            Text(entry.exercise)
-                .font(.largeTitle)
-                .fontWeight(.bold)
-            
-            Text(entry.details)
-                .font(.title3)
-                .foregroundColor(.secondary)
-            
-            Text(formattedDateTime(entry.date))
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-            
-            Text("Total: \(entry.totalReps) reps, \(Int(entry.totalVolume)) lbs volume")
-                .font(.headline)
-            
-            Divider()
-            
-            Text("Logged Sets")
-                .font(.headline)
-            
-            ForEach(entry.sets) { set in
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Set \(set.setNumber)")
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                Text(entry.exercise)
+                    .font(.system(size: 40, weight: .bold))
+                    .foregroundColor(.appTextPrimary)
+                
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(entry.details)
                         .font(.headline)
+                        .foregroundColor(.appTextPrimary)
                     
-                    Text("Weight: \(set.weight)")
-                    Text("Reps: \(set.reps)")
-                    Text("RPE: \(set.rpe)")
+                    Text(formattedDateTime(entry.date))
+                        .foregroundColor(.appTextSecondary)
+                    
+                    let isBodyweightStyle =
+                    entry.sets.contains {
+                        (Double($0.weight) ?? 0) == 0
+                    }
+
+                    Text(
+                        isBodyweightStyle
+                        ? "Total Reps: \(entry.totalReps)"
+                        : "Total: \(entry.totalReps) reps, \(Int(entry.totalVolume)) lb volume"
+                    )
+                    .foregroundColor(.appTextSecondary)
                 }
                 .padding()
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(.systemGray6))
-                .cornerRadius(12)
+                .background(Color.appCard)
+                .cornerRadius(16)
+                
+                VStack(alignment: .leading, spacing: 12) {
+
+                    Text("Logged Sets")
+                        .font(.headline)
+                        .foregroundColor(.appTextSecondary)
+
+                    VStack(alignment: .leading, spacing: 10) {
+
+                        ForEach(entry.sets) { set in
+
+                            let weightValue = Double(set.weight) ?? 0
+
+                            Text(
+                                weightValue > 0
+                                ? "Set \(set.setNumber): +\(Int(weightValue)) lb • \(set.reps) reps • RPE \(set.rpe)"
+                                : "Set \(set.setNumber): Bodyweight • \(set.reps) reps • RPE \(set.rpe)"
+                            )
+                            .foregroundColor(.appTextSecondary)
+                        }
+                    }
+                    .padding()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.appCard)
+                    .cornerRadius(16)
+                }
             }
-            
-            Spacer()
+            .padding()
         }
-        .padding()
+        .background(Color.appBackground.ignoresSafeArea())
         .navigationTitle("History Detail")
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -1994,6 +2139,94 @@ struct EditWorkoutTitleView: View {
         }
     }
 }
+struct ExerciseProgressDetailView: View {
+    let exerciseName: String
+    @Bindable var appStore: AppStore
+
+    var entries: [WorkoutHistoryEntry] {
+        appStore.historyEntries
+            .filter { $0.exercise == exerciseName }
+            .sorted { $0.date > $1.date }
+    }
+
+    var bestWeight: Double {
+        entries
+            .flatMap { $0.sets }
+            .compactMap { Double($0.weight) }
+            .max() ?? 0
+    }
+
+    var bestReps: Int {
+        entries
+            .flatMap { $0.sets }
+            .compactMap { Int($0.reps) }
+            .max() ?? 0
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+
+                Text(exerciseName)
+                    .font(.system(size: 40, weight: .bold))
+                    .foregroundColor(.appTextPrimary)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Best")
+                        .font(.caption)
+                        .foregroundColor(.appTextSecondary)
+
+                    if bestWeight > 0 {
+                        Text("\(Int(bestWeight)) lb")
+                            .font(.title)
+                            .fontWeight(.bold)
+                            .foregroundColor(.appTextPrimary)
+                    } else {
+                        Text("\(bestReps) reps")
+                            .font(.title)
+                            .fontWeight(.bold)
+                            .foregroundColor(.appTextPrimary)
+                    }
+                }
+                .padding()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.appCard)
+                .cornerRadius(16)
+
+                Text("Recent Sessions")
+                    .font(.headline)
+                    .foregroundColor(.appTextSecondary)
+
+                ForEach(entries) { entry in
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(formattedDateTime(entry.date))
+                            .font(.headline)
+                            .foregroundColor(.appTextPrimary)
+
+                        ForEach(entry.sets) { set in
+                            let weightValue = Double(set.weight) ?? 0
+
+                            Text(
+                                weightValue > 0
+                                ? "Set \(set.setNumber): \(Int(weightValue)) lb x \(set.reps) • RPE \(set.rpe)"
+                                : "Set \(set.setNumber): Bodyweight x \(set.reps) • RPE \(set.rpe)"
+                            )
+                            .foregroundColor(.appTextSecondary)
+                        }
+                    }
+                    .padding()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.appCard)
+                    .cornerRadius(16)
+                }
+            }
+            .padding()
+        }
+        .background(Color.appBackground.ignoresSafeArea())
+        .navigationTitle("Progress Detail")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
 struct ProgressView: View {
     @Bindable var appStore: AppStore
     @State private var selectedCategory: ExerciseCategory = .mainLift
@@ -2098,22 +2331,41 @@ struct ProgressView: View {
                 } else {
                     Section(selectedCategory.rawValue) {
                         ForEach(filteredPRs) { pr in
-                            HStack {
-                                VStack(alignment: .leading) {
+                            NavigationLink {
+                                ExerciseProgressDetailView(
+                                    exerciseName: pr.exercise,
+                                    appStore: appStore
+                                )
+                            } label: {
+                                HStack {
                                     Text(pr.exercise)
                                         .font(.headline)
+                                        .foregroundColor(.appTextPrimary)
+                                    
+                                    Spacer()
+                                    
+                                    Text(pr.displayValue)
+                                        .font(.headline)
+                                        .foregroundColor(.appTextPrimary)
+                                    
+                                    Image(systemName: "chevron.right")
+                                        .font(.headline)
+                                        .foregroundColor(.appTextSecondary)
                                 }
-                                
-                                Spacer()
-                                
-                                Text(pr.displayValue)
-                                    .font(.headline)
+                                .padding()
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Color.appCard)
+                                .cornerRadius(16)
                             }
-                            .padding(.vertical, 4)
+                            .buttonStyle(.plain)
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.appBackground)
                         }
                     }
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(Color.appBackground)
             .navigationTitle("Progress")
             .sheet(isPresented: $showAddBodyweightSheet) {
                 AddBodyweightView(appStore: appStore)
