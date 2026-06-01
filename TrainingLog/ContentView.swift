@@ -2148,6 +2148,27 @@ struct ExerciseProgressDetailView: View {
             .filter { $0.exercise == exerciseName }
             .sorted { $0.date > $1.date }
     }
+    var chartPoints: [(date: Date, value: Double)] {
+        entries
+            .map { entry in
+                let bestSetValue =
+                entry.sets
+                    .compactMap { set -> Double? in
+                        if bestWeight > 0 {
+                            return Double(set.weight)
+                        } else {
+                            return Double(set.reps)
+                        }
+                    }
+                    .max() ?? 0
+
+                return (
+                    date: entry.date,
+                    value: bestSetValue
+                )
+            }
+            .sorted { $0.date < $1.date }
+    }
 
     var bestWeight: Double {
         entries
@@ -2161,6 +2182,20 @@ struct ExerciseProgressDetailView: View {
             .flatMap { $0.sets }
             .compactMap { Int($0.reps) }
             .max() ?? 0
+    }
+    var topSet: WorkoutSetEntry? {
+        entries
+            .flatMap { $0.sets }
+            .max {
+                let lhsWeight = Double($0.weight) ?? 0
+                let rhsWeight = Double($1.weight) ?? 0
+
+                if lhsWeight == rhsWeight {
+                    return (Int($0.reps) ?? 0) < (Int($1.reps) ?? 0)
+                }
+
+                return lhsWeight < rhsWeight
+            }
     }
 
     var body: some View {
@@ -2192,6 +2227,62 @@ struct ExerciseProgressDetailView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color.appCard)
                 .cornerRadius(16)
+                
+                if let topSet {
+                    VStack(alignment: .leading, spacing: 8) {
+
+                        Text("Top Set")
+                            .font(.caption)
+                            .foregroundColor(.appTextSecondary)
+
+                        let weightValue = Double(topSet.weight) ?? 0
+
+                        Text(
+                            weightValue > 0
+                            ? "\(Int(weightValue)) lb x \(topSet.reps)"
+                            : "Bodyweight x \(topSet.reps)"
+                        )
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .foregroundColor(.appTextPrimary)
+
+                        Text("RPE \(topSet.rpe)")
+                            .foregroundColor(.appTextSecondary)
+                    }
+                    .padding()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.appCard)
+                    .cornerRadius(16)
+                }
+                
+                if chartPoints.count >= 2 {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Trend")
+                            .font(.caption)
+                            .foregroundColor(.appTextSecondary)
+
+                        Chart(chartPoints, id: \.date) { point in
+                            LineMark(
+                                x: .value("Date", point.date),
+                                y: .value("Value", point.value)
+                            )
+
+                            PointMark(
+                                x: .value("Date", point.date),
+                                y: .value("Value", point.value)
+                            )
+                        }
+                        .chartYAxis(.hidden)
+                        .chartXAxis {
+                            AxisMarks(values: .automatic(desiredCount: 4))
+                        }
+                        .frame(height: 180)
+                    }
+                    .padding()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.appCard)
+                    .cornerRadius(16)
+                }
 
                 Text("Recent Sessions")
                     .font(.headline)
