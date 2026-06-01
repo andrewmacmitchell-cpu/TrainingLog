@@ -2276,7 +2276,7 @@ struct ExerciseProgressDetailView: View {
                         .chartXAxis {
                             AxisMarks(values: .automatic(desiredCount: 4))
                         }
-                        .frame(height: 180)
+                        .frame(height: 140)
                     }
                     .padding()
                     .frame(maxWidth: .infinity, alignment: .leading)
