@@ -2148,11 +2148,11 @@ struct ExerciseProgressDetailView: View {
             .filter { $0.exercise == exerciseName }
             .sorted { $0.date > $1.date }
     }
+
     var chartPoints: [(date: Date, value: Double)] {
         entries
             .map { entry in
-                let bestSetValue =
-                entry.sets
+                let bestSetValue = entry.sets
                     .compactMap { set -> Double? in
                         if bestWeight > 0 {
                             return Double(set.weight)
@@ -2183,6 +2183,19 @@ struct ExerciseProgressDetailView: View {
             .compactMap { Int($0.reps) }
             .max() ?? 0
     }
+
+    var sessionCount: Int {
+        entries.count
+    }
+
+    var lastPerformed: Date? {
+        entries.first?.date
+    }
+
+    var firstPerformed: Date? {
+        entries.last?.date
+    }
+
     var topSet: WorkoutSetEntry? {
         entries
             .flatMap { $0.sets }
@@ -2197,7 +2210,95 @@ struct ExerciseProgressDetailView: View {
                 return lhsWeight < rhsWeight
             }
     }
+    var firstChartValue: Double? {
+        chartPoints.first?.value
+    }
 
+    var latestChartValue: Double? {
+        chartPoints.last?.value
+    }
+
+    var trendDifference: Double {
+        guard let first = firstChartValue,
+              let latest = latestChartValue else {
+            return 0
+        }
+
+        return latest - first
+    }
+
+    var trendLabel: String {
+        if trendDifference > 0 {
+            return "Trending Up"
+        } else if trendDifference < 0 {
+            return "Trending Down"
+        } else {
+            return "Stable"
+        }
+    }
+
+    var trendDetail: String {
+        guard chartPoints.count >= 2 else {
+            return "More sessions needed."
+        }
+
+        let unit = bestWeight > 0 ? "lb" : "reps"
+
+        if trendDifference > 0 {
+            return "+\(Int(trendDifference)) \(unit) since first logged"
+        } else if trendDifference < 0 {
+            return "\(Int(trendDifference)) \(unit) since first logged"
+        } else {
+            return "No major change yet."
+        }
+    }
+    var daysSinceLastPerformed: Int {
+        guard let lastPerformed else {
+            return 0
+        }
+
+        return Calendar.current.dateComponents(
+            [.day],
+            from: lastPerformed,
+            to: Date()
+        ).day ?? 0
+    }
+
+    var trainingStatus: String {
+        if sessionCount < 3 {
+            return "New Exercise"
+        }
+
+        if daysSinceLastPerformed >= 21 {
+            return "Detraining Risk"
+        }
+
+        if daysSinceLastPerformed >= 10 {
+            return "Needs Attention"
+        }
+
+        return "Consistent"
+    }
+
+    var trainingStatusDetail: String {
+        if sessionCount < 3 {
+            return "\(sessionCount) sessions logged."
+        }
+
+        if daysSinceLastPerformed >= 21 {
+            return "Last trained \(daysSinceLastPerformed) days ago."
+        }
+
+        if daysSinceLastPerformed >= 10 {
+            return "Last trained \(daysSinceLastPerformed) days ago. Consider getting this back in rotation."
+        }
+
+        if daysSinceLastPerformed == 0 {
+            return "Trained today."
+        }
+
+        return "Last trained \(daysSinceLastPerformed) days ago."
+    }
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
@@ -2227,10 +2328,9 @@ struct ExerciseProgressDetailView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color.appCard)
                 .cornerRadius(16)
-                
+
                 if let topSet {
                     VStack(alignment: .leading, spacing: 8) {
-
                         Text("Top Set")
                             .font(.caption)
                             .foregroundColor(.appTextSecondary)
@@ -2254,11 +2354,60 @@ struct ExerciseProgressDetailView: View {
                     .background(Color.appCard)
                     .cornerRadius(16)
                 }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Stats")
+                        .font(.caption)
+                        .foregroundColor(.appTextSecondary)
+
+                    Text("\(sessionCount) Sessions Logged")
+                        .foregroundColor(.appTextPrimary)
+
+                    if let lastPerformed {
+                        Text("Last Performed: \(formattedDateTime(lastPerformed))")
+                            .foregroundColor(.appTextSecondary)
+                    }
+
+                    if let firstPerformed {
+                        Text("First Logged: \(formattedDateTime(firstPerformed))")
+                            .foregroundColor(.appTextSecondary)
+                    }
+                }
+                .padding()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.appCard)
+                .cornerRadius(16)
                 
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Status")
+                        .font(.caption)
+                        .foregroundColor(.appTextSecondary)
+
+                    Text(trainingStatus)
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .foregroundColor(.appTextPrimary)
+
+                    Text(trainingStatusDetail)
+                        .foregroundColor(.appTextSecondary)
+                }
+                .padding()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.appCard)
+                .cornerRadius(16)
+
                 if chartPoints.count >= 2 {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Trend")
                             .font(.caption)
+                            .foregroundColor(.appTextSecondary)
+                        
+                        Text(trendLabel)
+                            .font(.title2)
+                            .fontWeight(.bold)
+                            .foregroundColor(.appTextPrimary)
+
+                        Text(trendDetail)
                             .foregroundColor(.appTextSecondary)
 
                         Chart(chartPoints, id: \.date) { point in
@@ -2273,9 +2422,7 @@ struct ExerciseProgressDetailView: View {
                             )
                         }
                         .chartYAxis(.hidden)
-                        .chartXAxis {
-                            AxisMarks(values: .automatic(desiredCount: 4))
-                        }
+                        .chartXAxis(.hidden)
                         .frame(height: 140)
                     }
                     .padding()
