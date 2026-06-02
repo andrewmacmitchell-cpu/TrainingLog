@@ -363,6 +363,9 @@ class AppStore {
     var prHistoryEntries: [PRHistoryEntry] = [] {
         didSet { save() }
     }
+    var bjjSessions: [BJJSession] = [] {
+        didSet { save() }
+    }
     
     private func save() {
         let encoder = JSONEncoder()
@@ -398,6 +401,9 @@ class AppStore {
         }
         if let prData = try? encoder.encode(prHistoryEntries) {
             UserDefaults.standard.set(prData, forKey: "prHistoryEntries")
+        }
+        if let bjjData = try? encoder.encode(bjjSessions) {
+            UserDefaults.standard.set(bjjData, forKey: "bjjSessions")
         }
 
         UserDefaults.standard.set(todaysWorkoutTitle, forKey: "todaysWorkoutTitle")
@@ -453,6 +459,10 @@ class AppStore {
         if let prData = UserDefaults.standard.data(forKey: "prHistoryEntries"),
            let decodedPRs = try? decoder.decode([PRHistoryEntry].self, from: prData) {
             prHistoryEntries = decodedPRs
+        }
+        if let bjjData = UserDefaults.standard.data(forKey: "bjjSessions"),
+           let decodedBJJ = try? decoder.decode([BJJSession].self, from: bjjData) {
+            bjjSessions = decodedBJJ
         }
     }
     func addCheckIn(
@@ -1093,9 +1103,6 @@ class AppStore {
         let weights = bodyweightEntries.map { $0.weight }
         guard let max = weights.max() else { return 300 }
         return max + 5
-    }
-    var bjjSessions: [BJJSession] = [] {
-        didSet { save() }
     }
     var beltRankChanges: [BeltRankChange] = [] {
         didSet { save() }
@@ -3972,6 +3979,23 @@ enum ActiveBJJSheet: Identifiable {
         }
     }
 }
+struct MetricRow: View {
+    let title: String
+    let value: String
+
+    var body: some View {
+        HStack {
+            Text(title)
+                .foregroundColor(.appTextPrimary)
+
+            Spacer()
+
+            Text(value)
+                .font(.headline)
+                .foregroundColor(.appTextPrimary)
+        }
+    }
+}
 struct BJJView: View {
     @Bindable var appStore: AppStore
     @State private var activeBJJSheet: ActiveBJJSheet?
@@ -4220,136 +4244,136 @@ struct BJJView: View {
                     }
                     .pickerStyle(.segmented)
                 }
-                Section("Overview") {
-                    HStack {
-                        Text("Sessions")
-                        Spacer()
-                        Text("\(filteredSessions.count)")
+                Section {
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Overview")
                             .font(.headline)
-                    }
-                    HStack {
-                        Text("Avg Readiness")
-                        Spacer()
-                        Text("\(filteredAverageReadiness, specifier: "%.1f")")
-                            .font(.headline)
-                    }
-                    
-                    HStack {
-                        Text("Current Belt")
-                        Spacer()
-                        Text(appStore.beltRank(for: Date()).rawValue)
-                            .font(.headline)
-                    }
-                    
-                    Button {
-                        activeBJJSheet = .beltRank
-                    } label: {
-                        Text("Update Belt Rank")
-                    }
-                    
-                    HStack {
-                        Text("Live Rounds")
-                        Spacer()
-                        Text("\(filteredTotalRounds)")
-                            .font(.headline)
-                    }
-                    
-                    HStack {
-                        Text("Live Minutes")
-                        Spacer()
-                        Text("\(filteredTotalLiveMinutes)")
-                            .font(.headline)
-                    }
-                    HStack {
-                        Text("Avg Session RPE")
-                        Spacer()
-                        Text("\(filteredAverageSessionRPE, specifier: "%.1f")")
-                            .font(.headline)
-                    }
-                    HStack {
-                        Text("Avg Round RPE")
-                        Spacer()
-                        Text("\(filteredAverageRoundRPE, specifier: "%.1f")")
-                            .font(.headline)
-                    }
-                    HStack {
-                        Text("Hard Rounds")
-                        Spacer()
-                        Text("\(filteredHardRounds)")
-                            .font(.headline)
-                    }
-                    HStack {
-                        Text("Hard Live Minutes")
-                        Spacer()
-                        Text("\(filteredHardLiveMinutes)")
-                            .font(.headline)
-                    }
-                    HStack {
-                        Text("BJJ Load")
-                        Spacer()
-                        Text("\(bjjFatigueScore) — \(bjjFatigueLabel)")
-                            .font(.headline)
-                    }
-                }
-                Section("Insights") {
-                    HStack {
-                        Text("Low Readiness Sessions")
-                        Spacer()
-                        Text("\(lowReadinessSessions.count)")
-                            .font(.headline)
-                    }
-                    
-                    HStack {
-                        Text("High Output Despite Low Readiness")
-                        Spacer()
-                        Text("\(highOutputLowReadinessSessions.count)")
-                            .font(.headline)
-                    }
-                    if !filteredSessions.isEmpty {
-                        Text(insightSummary)
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    }
-                }
-                Section("Readiness Trend") {
-                    if readinessChartData.count < 2 {
-                        Text("Not enough readiness data yet.")
-                            .foregroundColor(.secondary)
-                    } else {
-                        Chart(readinessChartData, id: \.date) { item in
-                            LineMark(
-                                x: .value("Date", item.date),
-                                y: .value("Readiness", item.readiness)
-                            )
-                            
-                            PointMark(
-                                x: .value("Date", item.date),
-                                y: .value("Readiness", item.readiness)
-                            )
+                            .foregroundColor(.appTextSecondary)
+
+                        MetricRow(title: "Sessions", value: "\(filteredSessions.count)")
+                        MetricRow(title: "Avg Readiness", value: String(format: "%.1f", filteredAverageReadiness))
+                        MetricRow(title: "Current Belt", value: appStore.beltRank(for: Date()).rawValue)
+
+                        Button {
+                            activeBJJSheet = .beltRank
+                        } label: {
+                            Text("Update Belt Rank")
+                                .foregroundColor(.appPrimary)
                         }
-                        .chartYScale(domain: 1...10)
-                        .frame(height: 180)
+
+                        Divider()
+                            .background(Color.appTextSecondary)
+
+                        MetricRow(title: "Live Rounds", value: "\(filteredTotalRounds)")
+                        MetricRow(title: "Live Minutes", value: "\(filteredTotalLiveMinutes)")
+                        MetricRow(title: "Avg Session RPE", value: String(format: "%.1f", filteredAverageSessionRPE))
+                        MetricRow(title: "Avg Round RPE", value: String(format: "%.1f", filteredAverageRoundRPE))
+                        MetricRow(title: "Hard Rounds", value: "\(filteredHardRounds)")
+                        MetricRow(title: "Hard Live Minutes", value: "\(filteredHardLiveMinutes)")
+                        MetricRow(title: "BJJ Load", value: "\(bjjFatigueScore) — \(bjjFatigueLabel)")
                     }
+                    .padding()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.appCard)
+                    .cornerRadius(18)
                 }
-                Section("BJJ Load Trend") {
-                    if bjjLoadChartData.count < 2 {
-                        Text("Not enough load data yet.")
-                            .foregroundColor(.secondary)
-                    } else {
-                        Chart(bjjLoadChartData, id: \.date) { item in
-                            LineMark(
-                                x: .value("Date", item.date),
-                                y: .value("Load", item.load)
-                            )
-                            
-                            PointMark(
-                                x: .value("Date", item.date),
-                                y: .value("Load", item.load)
-                            )
+                .listRowBackground(Color.appBackground)
+                
+                Section {
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Insights")
+                            .font(.headline)
+                            .foregroundColor(.appTextSecondary)
+
+                        MetricRow(
+                            title: "Low Readiness Sessions",
+                            value: "\(lowReadinessSessions.count)"
+                        )
+
+                        MetricRow(
+                            title: "High Output Despite Low Readiness",
+                            value: "\(highOutputLowReadinessSessions.count)"
+                        )
+
+                        if !filteredSessions.isEmpty {
+                            Text(insightSummary)
+                                .font(.subheadline)
+                                .foregroundColor(.appTextSecondary)
                         }
-                        .frame(height: 180)
                     }
+                    .padding()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.appCard)
+                    .cornerRadius(18)
                 }
+                .listRowBackground(Color.appBackground)
+                
+                Section {
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Readiness Trend")
+                            .font(.headline)
+                            .foregroundColor(.appTextSecondary)
+
+                        if readinessChartData.count < 2 {
+                            Text("Not enough readiness data yet.")
+                                .foregroundColor(.appTextSecondary)
+                        } else {
+                            Chart(readinessChartData, id: \.date) { item in
+                                LineMark(
+                                    x: .value("Date", item.date),
+                                    y: .value("Readiness", item.readiness)
+                                )
+
+                                PointMark(
+                                    x: .value("Date", item.date),
+                                    y: .value("Readiness", item.readiness)
+                                )
+                            }
+                            .chartYScale(domain: 1...10)
+                            .chartYAxis(.hidden)
+                            .chartXAxis(.hidden)
+                            .frame(height: 140)
+                        }
+                    }
+                    .padding()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.appCard)
+                    .cornerRadius(18)
+                }
+                .listRowBackground(Color.appBackground)
+                
+                Section {
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("BJJ Load Trend")
+                            .font(.headline)
+                            .foregroundColor(.appTextSecondary)
+
+                        if bjjLoadChartData.count < 2 {
+                            Text("Not enough load data yet.")
+                                .foregroundColor(.appTextSecondary)
+                        } else {
+                            Chart(bjjLoadChartData, id: \.date) { item in
+                                LineMark(
+                                    x: .value("Date", item.date),
+                                    y: .value("Load", item.load)
+                                )
+
+                                PointMark(
+                                    x: .value("Date", item.date),
+                                    y: .value("Load", item.load)
+                                )
+                            }
+                            .chartYAxis(.hidden)
+                            .chartXAxis(.hidden)
+                            .frame(height: 140)
+                        }
+                    }
+                    .padding()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.appCard)
+                    .cornerRadius(18)
+                }
+                .listRowBackground(Color.appBackground)
                 Section("Partner Belt Distribution") {
                     if partnerBeltChartData.isEmpty {
                         Text("No live rounds in this range.")
@@ -4506,66 +4530,90 @@ struct BJJView: View {
                         activeBJJSheet = .logSession
                     } label: {
                         Text("Log BJJ Session")
-                    }
-                }
-                
-                Section {
-                    Button {
-                        withAnimation {
-                            showRecentSessions.toggle()
-                        }
-                    } label: {
-                        HStack {
-                            Text("Recent Sessions")
-                                .font(.headline)
-                            
-                            Spacer()
-                            
-                            Image(systemName: showRecentSessions ? "chevron.down" : "chevron.right")
-                                .foregroundColor(.secondary)
-                        }
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.appPrimary)
+                            .foregroundColor(.white)
+                            .cornerRadius(12)
                     }
                     .buttonStyle(.plain)
+                }
+                .listRowBackground(Color.appBackground)
+                
+                Section {
+                    VStack(alignment: .leading, spacing: 16) {
+                        Button {
+                            withAnimation {
+                                showRecentSessions.toggle()
+                            }
+                        } label: {
+                            HStack {
+                                Text("Recent Sessions")
+                                    .font(.headline)
+                                    .foregroundColor(.appTextSecondary)
 
-                    if filteredSessions.isEmpty {
-                        Text("No BJJ sessions logged yet.")
-                            .foregroundColor(.secondary)
-                    } else if showRecentSessions {
-                        ForEach(filteredSessions) { session in
-                            NavigationLink {
-                                BJJSessionDetailView(
-                                    appStore: appStore,
-                                    session: session
-                                )
-                            } label: {
-                                VStack(alignment: .leading, spacing: 6) {
-                                    Text(session.sessionType.rawValue)
-                                        .font(.headline)
-                                    
-                                    Text(formattedDateTime(session.date))
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                    
-                                    Text("\(session.totalRounds) rounds • \(session.totalLiveMinutes) live min")
-                                    
-                                    Text("Session RPE: \(session.sessionRPE)/10")
-                                        .foregroundColor(.secondary)
-                                    
-                                    Text("Readiness: \(session.readinessAverage, specifier: "%.1f")/10")
-                                        .foregroundColor(.secondary)
-                                }
-                                .padding(.vertical, 4)
+                                Spacer()
+
+                                Image(systemName: showRecentSessions ? "chevron.down" : "chevron.right")
+                                    .foregroundColor(.appTextSecondary)
                             }
                         }
-                        .onDelete { offsets in
-                            for offset in offsets {
-                                let session = filteredSessions[offset]
-                                appStore.deleteBJJSession(id: session.id)
+                        .buttonStyle(.plain)
+
+                        if filteredSessions.isEmpty {
+                            Text("No BJJ sessions logged yet.")
+                                .foregroundColor(.appTextSecondary)
+                        } else if showRecentSessions {
+                            ForEach(filteredSessions) { session in
+                                NavigationLink {
+                                    BJJSessionDetailView(
+                                        appStore: appStore,
+                                        session: session
+                                    )
+                                } label: {
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        Text(session.sessionType.rawValue)
+                                            .font(.headline)
+                                            .foregroundColor(.appTextPrimary)
+
+                                        Text(formattedDateTime(session.date))
+                                            .font(.caption)
+                                            .foregroundColor(.appTextSecondary)
+
+                                        Text("\(session.totalRounds) rounds • \(session.totalLiveMinutes) live min")
+                                            .foregroundColor(.appTextSecondary)
+
+                                        Text("Session RPE: \(session.sessionRPE)/10")
+                                            .foregroundColor(.appTextSecondary)
+
+                                        Text("Readiness: \(session.readinessAverage, specifier: "%.1f")/10")
+                                            .foregroundColor(.appTextSecondary)
+                                    }
+                                    .padding()
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(Color.appCardSecondary)
+                                    .cornerRadius(14)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            .onDelete { offsets in
+                                for offset in offsets {
+                                    let session = filteredSessions[offset]
+                                    appStore.deleteBJJSession(id: session.id)
+                                }
                             }
                         }
                     }
+                    .padding()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.appCard)
+                    .cornerRadius(18)
                 }
+                .listRowBackground(Color.appBackground)
             }
+            .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
+            .background(Color.appBackground)
             .navigationTitle("BJJ")
             .sheet(item: $activeBJJSheet) { sheet in
                 switch sheet {
