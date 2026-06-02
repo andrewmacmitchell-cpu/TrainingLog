@@ -1143,7 +1143,7 @@ struct ContentView: View {
                 .tabItem {
                     Label("History", systemImage: "clock.arrow.circlepath")
                 }
-            ProgressView(appStore: appStore)
+            TrainingProgressView(appStore: appStore)
                 .tabItem {
                     Label("Progress", systemImage: "chart.line.uptrend.xyaxis")
                 }
@@ -2488,7 +2488,7 @@ struct ExerciseProgressDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 }
-struct ProgressView: View {
+struct TrainingProgressView: View {
     @Bindable var appStore: AppStore
     @State private var selectedCategory: ExerciseCategory = .mainLift
     @State private var showAddBodyweightSheet = false
@@ -4850,9 +4850,19 @@ struct LogBJJSessionView: View {
             Form {
 
                 Section {
-                    Text("Step \(currentStep) of 4")
-                        .foregroundColor(.secondary)
+                    VStack(alignment: .leading, spacing: 8) {
+                        ProgressView(
+                            value: Double(currentStep),
+                            total: 4
+                        )
+                        .tint(.appPrimary)
+
+                        Text("\(currentStep)/4 Complete")
+                            .font(.caption)
+                            .foregroundColor(.appTextSecondary)
+                    }
                 }
+                .listRowBackground(Color.appCard)
 
                 if currentStep == 1 {
                     Section("Pre-Session Readiness") {
@@ -4863,6 +4873,7 @@ struct LogBJJSessionView: View {
                         ReadinessSlider(title: "Energy", value: $energy)
                         ReadinessSlider(title: "Mood", value: $mood)
                     }
+                    .listRowBackground(Color.appCard)
                 }
 
                 if currentStep == 2 {
@@ -4892,6 +4903,7 @@ struct LogBJJSessionView: View {
                             axis: .vertical
                         )
                     }
+                    .listRowBackground(Color.appCard)
                 }
 
                 if currentStep == 3 {
@@ -4933,6 +4945,7 @@ struct LogBJJSessionView: View {
                             rounds.append(round)
                             roundNotes = ""
                         }
+                        .listRowBackground(Color.appCard)
                     }
 
                     if !rounds.isEmpty {
@@ -4943,6 +4956,7 @@ struct LogBJJSessionView: View {
                                 )
                             }
                         }
+                        .listRowBackground(Color.appCard)
                     }
                 }
 
@@ -4959,6 +4973,9 @@ struct LogBJJSessionView: View {
                     )
                 }
             }
+            .listRowBackground(Color.appCard)
+            .scrollContentBackground(.hidden)
+            .background(Color.appBackground)
             .navigationTitle(stepTitle)
             .toolbar {
 
