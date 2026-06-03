@@ -4848,21 +4848,13 @@ struct LogBJJSessionView: View {
     var body: some View {
         NavigationStack {
             Form {
-
+                
                 Section {
-                    VStack(alignment: .leading, spacing: 8) {
-                        ProgressView(
-                            value: Double(currentStep),
-                            total: 4
-                        )
+                    ProgressView(value: Double(currentStep), total: 4)
                         .tint(.appPrimary)
-
-                        Text("\(currentStep)/4 Complete")
-                            .font(.caption)
-                            .foregroundColor(.appTextSecondary)
-                    }
                 }
-                .listRowBackground(Color.appCard)
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: 8, leading: 38, bottom: 8, trailing: 38))
 
                 if currentStep == 1 {
                     Section("Pre-Session Readiness") {
@@ -4877,7 +4869,7 @@ struct LogBJJSessionView: View {
                 }
 
                 if currentStep == 2 {
-                    Section("Session Details") {
+                    Section {
 
                         Picker("Type", selection: $sessionType) {
                             ForEach(BJJSessionType.allCases, id: \.self) { type in
@@ -4908,7 +4900,7 @@ struct LogBJJSessionView: View {
 
                 if currentStep == 3 {
 
-                    Section("Add Live Roll") {
+                    Section {
 
                         Picker("Partner Belt", selection: $partnerBelt) {
                             ForEach(BeltLevel.allCases, id: \.self) { belt in
@@ -4945,15 +4937,24 @@ struct LogBJJSessionView: View {
                             rounds.append(round)
                             roundNotes = ""
                         }
-                        .listRowBackground(Color.appCard)
                     }
+                    .listRowBackground(Color.appCard)
+                    .tint(.appPrimary)
 
                     if !rounds.isEmpty {
-                        Section("Logged Rolls") {
+                        Section {
                             ForEach(rounds) { round in
-                                Text(
-                                    "\(round.durationMinutes) min vs \(round.beltLevel.rawValue) • RPE \(round.roundRPE)"
-                                )
+                                HStack {
+                                    Text(round.beltLevel.rawValue)
+                                        .font(.headline)
+                                        .fontWeight(.semibold)
+                                        .foregroundColor(round.beltLevel.displayColor)
+
+                                    Spacer()
+
+                                    Text("\(round.durationMinutes) min • RPE \(round.roundRPE)")
+                                        .foregroundColor(.appTextSecondary)
+                                }
                             }
                         }
                         .listRowBackground(Color.appCard)
@@ -4977,13 +4978,8 @@ struct LogBJJSessionView: View {
             .scrollContentBackground(.hidden)
             .background(Color.appBackground)
             .navigationTitle(stepTitle)
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                }
 
                 ToolbarItem(placement: .confirmationAction) {
                     Button(currentStep == 4 ? "Save" : "Next") {
@@ -5025,14 +5021,43 @@ struct LogBJJSessionView: View {
                     }
                 }
 
-                ToolbarItem(placement: .bottomBar) {
+                ToolbarItem(placement: .topBarLeading) {
                     if currentStep > 1 {
                         Button("Back") {
                             currentStep -= 1
                         }
+                        .foregroundColor(.appPrimary)
+                    } else {
+                        Button("Cancel") {
+                            dismiss()
+                        }
+                        .foregroundColor(.appPrimary)
                     }
                 }
             }
+        }
+    }
+}
+extension BeltLevel {
+    var displayColor: Color {
+        switch self {
+        case .white:
+            return .white
+
+        case .blue:
+            return .blue
+
+        case .purple:
+            return .purple
+
+        case .brown:
+            return .brown
+
+        case .black:
+            return .red
+
+        case .unknown:
+            return .appTextSecondary
         }
     }
 }
