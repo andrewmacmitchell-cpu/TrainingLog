@@ -174,8 +174,6 @@ struct PRHistoryEntry: Identifiable, Codable {
 enum BJJSessionType: String, Codable, CaseIterable {
     case gi = "Gi"
     case noGi = "No-Gi"
-    case openMat = "Open Mat"
-    case competition = "Competition"
 }
 
 enum BeltLevel: String, Codable, CaseIterable {
@@ -3680,7 +3678,7 @@ struct WorkoutCheckInView: View {
         NavigationStack {
             Form {
                 Section("Readiness Check-In") {
-                    ReadinessSlider(title: "Sleep", value: $sleep)
+                    RatingChipSelector(title: "Sleep", value: $sleep)
                     ReadinessSlider(title: "Stress", value: $stress)
                     ReadinessSlider(title: "Recovery", value: $recovery)
                     ReadinessSlider(title: "Motivation", value: $motivation)
@@ -4819,6 +4817,7 @@ struct LogBJJSessionView: View {
     @State private var totalDurationMinutes = 60
     @State private var sessionRPE = 6
     @State private var notes = ""
+    @State private var didLiveRounds = true
 
     @State private var rounds: [BJJRounds] = []
 
@@ -4858,12 +4857,12 @@ struct LogBJJSessionView: View {
 
                 if currentStep == 1 {
                     Section("Pre-Session Readiness") {
-                        ReadinessSlider(title: "Sleep", value: $sleep)
-                        ReadinessSlider(title: "Stress", value: $stress)
-                        ReadinessSlider(title: "Recovery", value: $recovery)
-                        ReadinessSlider(title: "Motivation", value: $motivation)
-                        ReadinessSlider(title: "Energy", value: $energy)
-                        ReadinessSlider(title: "Mood", value: $mood)
+                        RatingChipSelector(title: "Sleep", value: $sleep)
+                        RatingChipSelector(title: "Stress", value: $stress)
+                        RatingChipSelector(title: "Recovery", value: $recovery)
+                        RatingChipSelector(title: "Motivation", value: $motivation)
+                        RatingChipSelector(title: "Energy", value: $energy)
+                        RatingChipSelector(title: "Mood", value: $mood)
                     }
                     .listRowBackground(Color.appCard)
                 }
@@ -4871,24 +4870,25 @@ struct LogBJJSessionView: View {
                 if currentStep == 2 {
                     Section {
 
-                        Picker("Type", selection: $sessionType) {
-                            ForEach(BJJSessionType.allCases, id: \.self) { type in
-                                Text(type.rawValue)
-                            }
-                        }
+                        SessionTypeChipSelector(selectedType: $sessionType)
+                        DurationChipSelector(duration: $totalDurationMinutes)
 
-                        Stepper(
-                            "Total Duration: \(totalDurationMinutes) min",
-                            value: $totalDurationMinutes,
-                            in: 10...240,
-                            step: 5
+                        LabeledChipSelector(
+                            title: "Session Effort",
+                            value: $sessionRPE,
+                            options: [
+                                ("Light Drilling", 1),
+                                ("Moderate", 2),
+                                ("Hard", 3),
+                                ("Very Hard", 4),
+                                ("Competition Style", 5)
+                            ]
                         )
-
-                        ReadinessSlider(
-                            title: "Session RPE",
-                            value: $sessionRPE
+                        YesNoChipSelector(
+                            title: "Live Rounds",
+                            value: $didLiveRounds
                         )
-
+                        
                         TextField(
                             "Session Notes",
                             text: $notes,
@@ -4984,10 +4984,29 @@ struct LogBJJSessionView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button(currentStep == 4 ? "Save" : "Next") {
 
-                        if currentStep < 4 {
-                            currentStep += 1
-                        } else {
+                        if currentStep == 2 && !didLiveRounds {
+                            appStore.addBJJSession(
+                                sessionType: sessionType,
+                                totalDurationMinutes: totalDurationMinutes,
+                                sleep: sleep,
+                                stress: stress,
+                                recovery: recovery,
+                                motivation: motivation,
+                                energy: energy,
+                                mood: mood,
+                                sessionRPE: sessionRPE,
+                                notes: notes,
+                                rounds: [],
+                                submissionsFinished: [],
+                                submissionsReceived: []
+                            )
 
+                            dismiss()
+
+                        } else if currentStep < 4 {
+                            currentStep += 1
+
+                        } else {
                             appStore.addBJJSession(
                                 sessionType: sessionType,
                                 totalDurationMinutes: totalDurationMinutes,
@@ -5059,6 +5078,200 @@ extension BeltLevel {
         case .unknown:
             return .appTextSecondary
         }
+    }
+}
+struct RatingChipSelector: View {
+    let title: String
+    @Binding var value: Int
+    var range: ClosedRange<Int> = 1...5
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .foregroundColor(.appTextPrimary)
+
+            LazyVGrid(
+                columns: Array(
+                    repeating: GridItem(.flexible()),
+                    count: 5
+                ),
+                spacing: 8
+            ) {
+                ForEach(Array(range), id: \.self) { number in
+                    Button {
+                        value = number
+                    } label: {
+                        Text("\(number)")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(
+                                value == number
+                                ? .white
+                                : .appTextSecondary
+                            )
+                            .frame(height: 38)
+                            .frame(maxWidth: .infinity)
+                            .background(
+                                value == number
+                                ? Color.appPrimary
+                                : Color.appCardSecondary
+                            )
+                            .cornerRadius(10)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .padding(.vertical, 2)
+    }
+}
+struct LabeledChipSelector: View {
+    let title: String
+    @Binding var value: Int
+    let options: [(label: String, value: Int)]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .foregroundColor(.appTextPrimary)
+
+            VStack(spacing: 8) {
+                ForEach(options, id: \.value) { option in
+                    Button {
+                        value = option.value
+                    } label: {
+                        Text(option.label)
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(value == option.value ? .white : .appTextSecondary)
+                            .frame(height: 42)
+                            .frame(maxWidth: .infinity)
+                            .background(value == option.value ? Color.appPrimary : Color.appCardSecondary)
+                            .cornerRadius(12)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .padding(.vertical, 2)
+    }
+}
+struct YesNoChipSelector: View {
+    let title: String
+    @Binding var value: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .foregroundColor(.appTextPrimary)
+
+            HStack(spacing: 8) {
+                Button {
+                    value = true
+                } label: {
+                    Text("Yes")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(value ? .white : .appTextSecondary)
+                        .frame(height: 42)
+                        .frame(maxWidth: .infinity)
+                        .background(value ? Color.appPrimary : Color.appCardSecondary)
+                        .cornerRadius(12)
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    value = false
+                } label: {
+                    Text("No")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(!value ? .white : .appTextSecondary)
+                        .frame(height: 42)
+                        .frame(maxWidth: .infinity)
+                        .background(!value ? Color.appPrimary : Color.appCardSecondary)
+                        .cornerRadius(12)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+}
+struct SessionTypeChipSelector: View {
+    @Binding var selectedType: BJJSessionType
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Training Type")
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .foregroundColor(.appTextPrimary)
+
+            HStack(spacing: 8) {
+                ForEach(BJJSessionType.allCases, id: \.self) { type in
+                    Button {
+                        selectedType = type
+                    } label: {
+                        Text(type.rawValue)
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(
+                                selectedType == type ? .white : .appTextSecondary
+                            )
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 42)
+                            .background(
+                                selectedType == type
+                                ? Color.appPrimary
+                                : Color.appCardSecondary
+                            )
+                            .cornerRadius(12)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .padding(.vertical, 2)
+    }
+}
+struct DurationChipSelector: View {
+    @Binding var duration: Int
+
+    let options = [60, 75, 90, 120]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Duration")
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .foregroundColor(.appTextPrimary)
+
+            HStack(spacing: 8) {
+                ForEach(options, id: \.self) { option in
+                    Button {
+                        duration = option
+                    } label: {
+                        Text("\(option)")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(duration == option ? .white : .appTextSecondary)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 42)
+                            .background(duration == option ? Color.appPrimary : Color.appCardSecondary)
+                            .cornerRadius(12)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .padding(.vertical, 2)
     }
 }
 struct SubmissionSelectionSection: View {
@@ -5310,22 +5523,13 @@ struct EditBJJSessionView: View {
         NavigationStack {
             Form {
                 Section("Session Details") {
-                    Picker("Type", selection: $sessionType) {
-                        ForEach(BJJSessionType.allCases, id: \.self) { type in
-                            Text(type.rawValue)
-                        }
-                    }
+                    SessionTypeChipSelector(selectedType: $sessionType)
+                    DurationChipSelector(duration: $totalDurationMinutes)
                     
-                    Stepper(
-                        "Total Duration: \(totalDurationMinutes) min",
-                        value: $totalDurationMinutes,
-                        in: 10...240,
-                        step: 5
-                    )
-                    
-                    ReadinessSlider(
+                    RatingChipSelector(
                         title: "Session RPE",
-                        value: $sessionRPE
+                        value: $sessionRPE,
+                        range: 1...10
                     )
                     
                     TextField(
