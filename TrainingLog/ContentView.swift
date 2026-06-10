@@ -108,7 +108,7 @@ struct WorkoutCheckIn: Identifiable, Codable {
     let bodyweight: String
     
     var readinessAverage: Double {
-        let total = sleep + recovery + motivation + energy + mood + (11 - stress)
+        let total = sleep + recovery + motivation + energy + mood + (6 - stress)
         return Double(total) / 6.0
     }
 }
@@ -222,7 +222,7 @@ struct BJJSession: Identifiable, Codable {
     let mood: Int
 
     var readinessAverage: Double {
-        let total = sleep + recovery + motivation + energy + mood + (11 - stress)
+        let total = sleep + recovery + motivation + energy + mood + (6 - stress)
         return Double(total) / 6.0
     }
     let sessionRPE: Int
@@ -3726,7 +3726,7 @@ struct WorkoutCheckInView: View {
             
         }
         var readinessAverage: Double {
-            let total = sleep + recovery + motivation + energy + mood + (11 - stress)
+            let total = sleep + recovery + motivation + energy + mood + (6 - stress)
             return Double(total) / 6.0
         }
     }
@@ -4093,11 +4093,11 @@ struct BJJView: View {
         return total / Double(filteredSessions.count)
     }
     var lowReadinessSessions: [BJJSession] {
-        filteredSessions.filter { $0.readinessAverage < 6.0 }
+        filteredSessions.filter { $0.readinessAverage < 3.0 }
     }
     var highOutputLowReadinessSessions: [BJJSession] {
         filteredSessions.filter {
-            $0.readinessAverage < 6.0 &&
+            $0.readinessAverage < 3.0 &&
             (
                 $0.sessionRPE >= 8 ||
                 $0.rounds.filter { $0.roundRPE >= 8 }.count >= 3
@@ -4719,7 +4719,7 @@ struct BJJView: View {
                                         Text("Session RPE: \(session.sessionRPE)/10")
                                             .foregroundColor(.appTextSecondary)
                                         
-                                        Text("Readiness: \(session.readinessAverage, specifier: "%.1f")/10")
+                                        Text("Readiness: \(session.readinessAverage, specifier: "%.1f")/5")
                                             .foregroundColor(.appTextSecondary)
                                     }
                                     .padding()
@@ -4828,6 +4828,8 @@ struct LogBJJSessionView: View {
 
     @State private var submissionsFinished: [SubmissionType: Int] = [:]
     @State private var submissionsReceived: [SubmissionType: Int] = [:]
+    @State private var didFinishSubmissions = false
+    @State private var didGetSubmitted = false
 
     var stepTitle: String {
         switch currentStep {
@@ -4874,32 +4876,36 @@ struct LogBJJSessionView: View {
                 .listRowInsets(EdgeInsets(top: 8, leading: 38, bottom: 8, trailing: 38))
 
                 if currentStep == 1 {
-                    Section("Pre-Session Readiness") {
+                    Section {
                         RatingChipSelector(title: "Sleep", value: $sleep)
                         RatingChipSelector(title: "Stress", value: $stress)
                         RatingChipSelector(title: "Recovery", value: $recovery)
                         RatingChipSelector(title: "Motivation", value: $motivation)
                         RatingChipSelector(title: "Energy", value: $energy)
                         RatingChipSelector(title: "Mood", value: $mood)
+                    } header: {
+                        Text("Pre-Session Readiness")
+                            .font(.headline)
+                            .foregroundColor(.appTextPrimary)
                     }
                     .listRowBackground(Color.appCard)
                 }
 
                 if currentStep == 2 {
                     Section {
-
+                        
                         SessionTypeChipSelector(selectedType: $sessionType)
                         DurationChipSelector(duration: $totalDurationMinutes)
-
+                        
                         LabeledChipSelector(
                             title: "Session Effort",
                             value: $sessionRPE,
                             options: [
-                                ("Light Drilling", 1),
-                                ("Moderate", 2),
-                                ("Hard", 3),
-                                ("Very Hard", 4),
-                                ("Competition Style", 5)
+                                ("LIGHT DRILLING", 1),
+                                ("MODERATE", 2),
+                                ("HARD", 3),
+                                ("VERY HARD", 4),
+                                ("COMPETITION STYLE", 5)
                             ]
                         )
                         YesNoChipSelector(
@@ -4908,10 +4914,13 @@ struct LogBJJSessionView: View {
                         )
                         
                         TextField(
-                            "Session Notes",
+                            "",
                             text: $notes,
-                            axis: .vertical
+                            prompt: Text("Session Notes")
+                                .foregroundColor(.white.opacity(0.6))
                         )
+                        .foregroundColor(.appTextPrimary)
+                        .lineLimit(3...8)
                     }
                     .listRowBackground(Color.appCard)
                 }
@@ -4925,32 +4934,36 @@ struct LogBJJSessionView: View {
                             selectedBelt: $partnerBelt
                         )
 
-                        Stepper(
-                            "Round Duration: \(roundDurationMinutes) min",
+                        DurationStepperControl(
+                            title: "Round Duration",
                             value: $roundDurationMinutes,
-                            in: 1...30
+                            range: 1...30
                         )
 
                         LabeledChipSelector(
                             title: "Round Effort",
                             value: $roundRPE,
                             options: [
-                                ("Flow Roll", 5),
-                                ("Technical Roll", 6),
-                                ("Typical Roll", 7),
-                                ("Hard Roll", 8),
-                                ("Competition Style", 9),
-                                ("Max Effort", 10)
+                                ("VERY EASY", 5),
+                                ("EASY", 6),
+                                ("MEDIUM", 7),
+                                ("HARD", 8),
+                                ("VERY HARD", 9),
+                                ("MAX EFFORT", 10)
                             ]
                         )
 
                         TextField(
-                            "Round Notes",
+                            "",
                             text: $roundNotes,
+                            prompt: Text("Round Notes")
+                                .foregroundColor(.white.opacity(0.6)),
                             axis: .vertical
                         )
+                        .foregroundColor(.appTextPrimary)
+                        .lineLimit(1...2)
 
-                        Button("Add Roll") {
+                        Button {
                             let round = BJJRounds(
                                 id: UUID(),
                                 beltLevel: partnerBelt,
@@ -4961,20 +4974,35 @@ struct LogBJJSessionView: View {
 
                             rounds.append(round)
                             roundNotes = ""
+                        } label: {
+                            HStack {
+                                Image(systemName: "plus.circle.fill")
+
+                                Text("Add Roll")
+                                    .fontWeight(.semibold)
+
+                                Spacer()
+                            }
+                            .foregroundColor(.white)
+                            .padding(12)
+                            .frame(maxWidth: .infinity)
+                            .background(Color.appPrimary)
+                            .cornerRadius(12)
                         }
+                        .buttonStyle(.plain)
                     }
                     .listRowBackground(Color.appCard)
                     .tint(.appPrimary)
 
                     if !rounds.isEmpty {
                         Section {
-                            VStack(alignment: .leading, spacing: 12) {
-                                Text("Logged Rolls")
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Logged Rolls (\(rounds.count))")
                                     .font(.subheadline)
                                     .fontWeight(.semibold)
                                     .foregroundColor(.appTextPrimary)
 
-                                ForEach(rounds) { round in
+                                ForEach(Array(rounds.reversed())) { round in
                                     VStack(alignment: .leading, spacing: 8) {
                                         HStack {
                                             Text("\(round.beltLevel.rawValue) Belt")
@@ -5005,15 +5033,32 @@ struct LogBJJSessionView: View {
 
                 if currentStep == 4 {
 
-                    SubmissionSelectionSection(
-                        title: "Submissions Finished",
-                        submissionCounts: $submissionsFinished
-                    )
+                    Section {
+                        YesNoChipSelector(
+                            title: "Finished Submissions?",
+                            value: $didFinishSubmissions
+                        )
 
-                    SubmissionSelectionSection(
-                        title: "Submitted By",
-                        submissionCounts: $submissionsReceived
-                    )
+                        if didFinishSubmissions {
+                            SubmissionSelectionSection(
+                                title: "Submissions Finished",
+                                submissionCounts: $submissionsFinished
+                            )
+                        }
+
+                        YesNoChipSelector(
+                            title: "Got Submitted?",
+                            value: $didGetSubmitted
+                        )
+
+                        if didGetSubmitted {
+                            SubmissionSelectionSection(
+                                title: "Submitted By",
+                                submissionCounts: $submissionsReceived
+                            )
+                        }
+                    }
+                    .listRowBackground(Color.appCard)
                 }
             }
             .listRowBackground(Color.appCard)
@@ -5181,7 +5226,7 @@ struct LabeledChipSelector: View {
                 .fontWeight(.semibold)
                 .foregroundColor(.appTextPrimary)
 
-            VStack(spacing: 8) {
+            VStack(spacing: 4) {
                 ForEach(options, id: \.value) { option in
                     Button {
                         value = option.value
@@ -5190,7 +5235,7 @@ struct LabeledChipSelector: View {
                             .font(.subheadline)
                             .fontWeight(.semibold)
                             .foregroundColor(value == option.value ? .white : .appTextSecondary)
-                            .frame(height: 42)
+                            .frame(height: 38)
                             .frame(maxWidth: .infinity)
                             .background(value == option.value ? Color.appPrimary : Color.appCardSecondary)
                             .cornerRadius(12)
@@ -5323,7 +5368,7 @@ struct BeltChipSelector: View {
     let belts: [BeltLevel] = [.white, .blue, .purple, .brown, .black]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 4) {
             Text(title)
                 .font(.subheadline)
                 .fontWeight(.semibold)
@@ -5345,13 +5390,10 @@ struct BeltChipSelector: View {
                                         .foregroundColor(.white)
                                 }
                             }
-                            .overlay {
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(
-                                        selectedBelt == belt ? Color.appPrimary : Color.clear,
-                                        lineWidth: 3
-                                    )
-                            }
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .stroke(Color.clear, lineWidth: 0)
+                            )
                     }
                     .buttonStyle(.plain)
                 }
@@ -5360,18 +5402,79 @@ struct BeltChipSelector: View {
         .padding(.vertical, 2)
     }
 }
+struct DurationStepperControl: View {
+    let title: String
+    @Binding var value: Int
+    var range: ClosedRange<Int> = 1...30
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .foregroundColor(.appTextPrimary)
+
+            HStack {
+                Button {
+                    if value > range.lowerBound {
+                        value -= 1
+                    }
+                } label: {
+                    Image(systemName: "minus")
+                        .font(.headline)
+                        .foregroundColor(.appTextPrimary)
+                        .frame(width: 44, height: 42)
+                        .background(Color.appCardSecondary)
+                        .cornerRadius(12)
+                }
+                .buttonStyle(.plain)
+
+                Spacer()
+
+                Text("\(value) min")
+                    .font(.title3)
+                    .fontWeight(.bold)
+                    .foregroundColor(.appTextPrimary)
+
+                Spacer()
+
+                Button {
+                    if value < range.upperBound {
+                        value += 1
+                    }
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.headline)
+                        .foregroundColor(.appTextPrimary)
+                        .frame(width: 44, height: 42)
+                        .background(Color.appCardSecondary)
+                        .cornerRadius(12)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+}
 struct SubmissionSelectionSection: View {
     let title: String
     @Binding var submissionCounts: [SubmissionType: Int]
-    
+
     var body: some View {
-        Section(title) {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title)
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .foregroundColor(.appTextPrimary)
+
             ForEach(SubmissionType.allCases, id: \.self) { submission in
                 HStack {
                     Text(submission.rawValue)
-                    
+                        .font(.subheadline)
+                        .foregroundColor(.appTextPrimary)
+
                     Spacer()
-                    
+
                     Button {
                         let current = submissionCounts[submission] ?? 0
                         if current > 0 {
@@ -5379,24 +5482,39 @@ struct SubmissionSelectionSection: View {
                         }
                     } label: {
                         Image(systemName: "minus.circle.fill")
+                            .font(.title3)
+                            .foregroundColor(
+                                (submissionCounts[submission] ?? 0) == 0
+                                ? .appTextSecondary.opacity(0.35)
+                                : .appTextSecondary
+                            )
                     }
-                    .buttonStyle(.borderless)
+                    .buttonStyle(.plain)
                     .disabled((submissionCounts[submission] ?? 0) == 0)
-                    
+
                     Text("\(submissionCounts[submission] ?? 0)")
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.appTextPrimary)
                         .frame(width: 32)
                         .monospacedDigit()
-                    
+
                     Button {
                         let current = submissionCounts[submission] ?? 0
                         submissionCounts[submission] = current + 1
                     } label: {
                         Image(systemName: "plus.circle.fill")
+                            .font(.title3)
+                            .foregroundColor(.appPrimary)
                     }
-                    .buttonStyle(.borderless)
+                    .buttonStyle(.plain)
                 }
+                .padding()
+                .background(Color.appCardSecondary)
+                .cornerRadius(12)
             }
         }
+        .padding(.vertical, 2)
     }
 }
 struct BJJSessionDetailView: View {
@@ -5497,7 +5615,7 @@ struct BJJSessionDetailView: View {
                 HStack {
                     Text("Average")
                     Spacer()
-                    Text("\(session.readinessAverage, specifier: "%.1f")/10")
+                    Text("\(session.readinessAverage, specifier: "%.1f")/5")
                         .font(.headline)
                 }
             }
