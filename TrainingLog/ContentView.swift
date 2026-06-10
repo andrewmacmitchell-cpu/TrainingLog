@@ -4843,6 +4843,24 @@ struct LogBJJSessionView: View {
             return "Log BJJ Session"
         }
     }
+    func roundEffortLabel(_ rpe: Int) -> String {
+        switch rpe {
+        case 5:
+            return "Flow Roll"
+        case 6:
+            return "Technical Roll"
+        case 7:
+            return "Typical Roll"
+        case 8:
+            return "Hard Roll"
+        case 9:
+            return "Competition Style"
+        case 10:
+            return "Max Effort"
+        default:
+            return "Roll"
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -4902,11 +4920,10 @@ struct LogBJJSessionView: View {
 
                     Section {
 
-                        Picker("Partner Belt", selection: $partnerBelt) {
-                            ForEach(BeltLevel.allCases, id: \.self) { belt in
-                                Text(belt.rawValue)
-                            }
-                        }
+                        BeltChipSelector(
+                            title: "Opponent Belt",
+                            selectedBelt: $partnerBelt
+                        )
 
                         Stepper(
                             "Round Duration: \(roundDurationMinutes) min",
@@ -4914,9 +4931,17 @@ struct LogBJJSessionView: View {
                             in: 1...30
                         )
 
-                        ReadinessSlider(
-                            title: "Round RPE",
-                            value: $roundRPE
+                        LabeledChipSelector(
+                            title: "Round Effort",
+                            value: $roundRPE,
+                            options: [
+                                ("Flow Roll", 5),
+                                ("Technical Roll", 6),
+                                ("Typical Roll", 7),
+                                ("Hard Roll", 8),
+                                ("Competition Style", 9),
+                                ("Max Effort", 10)
+                            ]
                         )
 
                         TextField(
@@ -4943,17 +4968,34 @@ struct LogBJJSessionView: View {
 
                     if !rounds.isEmpty {
                         Section {
-                            ForEach(rounds) { round in
-                                HStack {
-                                    Text(round.beltLevel.rawValue)
-                                        .font(.headline)
-                                        .fontWeight(.semibold)
-                                        .foregroundColor(round.beltLevel.displayColor)
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Logged Rolls")
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.appTextPrimary)
 
-                                    Spacer()
+                                ForEach(rounds) { round in
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        HStack {
+                                            Text("\(round.beltLevel.rawValue) Belt")
+                                                .font(.headline)
+                                                .fontWeight(.semibold)
+                                                .foregroundColor(round.beltLevel.displayColor)
 
-                                    Text("\(round.durationMinutes) min • RPE \(round.roundRPE)")
-                                        .foregroundColor(.appTextSecondary)
+                                            Spacer()
+
+                                            Text("\(round.durationMinutes) min")
+                                                .font(.subheadline)
+                                                .foregroundColor(.appTextSecondary)
+                                        }
+
+                                        Text(roundEffortLabel(round.roundRPE))
+                                            .font(.subheadline)
+                                            .foregroundColor(.appTextSecondary)
+                                    }
+                                    .padding()
+                                    .background(Color.appCardSecondary)
+                                    .cornerRadius(14)
                                 }
                             }
                         }
@@ -5266,6 +5308,50 @@ struct DurationChipSelector: View {
                             .frame(height: 42)
                             .background(duration == option ? Color.appPrimary : Color.appCardSecondary)
                             .cornerRadius(12)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .padding(.vertical, 2)
+    }
+}
+struct BeltChipSelector: View {
+    let title: String
+    @Binding var selectedBelt: BeltLevel
+
+    let belts: [BeltLevel] = [.white, .blue, .purple, .brown, .black]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .foregroundColor(.appTextPrimary)
+
+            HStack(spacing: 8) {
+                ForEach(belts, id: \.self) { belt in
+                    Button {
+                        selectedBelt = belt
+                    } label: {
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(belt.displayColor)
+                            .frame(height: 42)
+                            .overlay {
+                                if selectedBelt == belt {
+                                    Image(systemName: "checkmark")
+                                        .font(.headline)
+                                        .fontWeight(.bold)
+                                        .foregroundColor(.white)
+                                }
+                            }
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(
+                                        selectedBelt == belt ? Color.appPrimary : Color.clear,
+                                        lineWidth: 3
+                                    )
+                            }
                     }
                     .buttonStyle(.plain)
                 }
