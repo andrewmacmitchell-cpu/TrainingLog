@@ -184,6 +184,29 @@ enum BeltLevel: String, Codable, CaseIterable {
     case black = "Black"
     case unknown = "Unknown"
 }
+extension BeltLevel {
+    var displayColor: Color {
+        switch self {
+        case .white:
+            return .white
+            
+        case .blue:
+            return .blue
+            
+        case .purple:
+            return .purple
+            
+        case .brown:
+            return .brown
+            
+        case .black:
+            return .red
+            
+        case .unknown:
+            return .appTextSecondary
+        }
+    }
+}
 func beltColor(_ belt: BeltLevel) -> Color {
     switch belt {
     case .white:
@@ -1289,7 +1312,7 @@ struct CheckInRowView: View {
                 .font(.caption)
                 .foregroundColor(.appTextSecondary)
             
-            Text("Readiness: \(readinessText)/10")
+            Text("Readiness: \(readinessText)/5")
                 .font(.subheadline)
                 .foregroundColor(.appTextSecondary)
             
@@ -2570,7 +2593,7 @@ struct TrainingProgressView: View {
                                     y: .value("Readiness", entry.readiness)
                                 )
                             }
-                            .chartYScale(domain: 1...10)
+                            .chartYScale(domain: 1...5)
                             .frame(height: 160)
                         }
                     }
@@ -3497,7 +3520,7 @@ struct ActiveWorkoutView: View {
                                 
                                 VStack(alignment: .leading, spacing: 12) {
                                     if let readiness = latestReadinessScore() {
-                                        Text("Readiness: \(readiness, specifier: "%.1f")/10")
+                                        Text("Readiness: \(readiness, specifier: "%.1f")/5")
                                             .font(.headline)
                                             .foregroundColor(.appTextPrimary)
                                         
@@ -4104,6 +4127,81 @@ struct BJJView: View {
             )
         }
     }
+    var topSubmissionFinished: String {
+        let totals = filteredSessions
+            .flatMap { $0.submissionsFinished }
+            .filter { $0.count > 0 }
+        
+        let grouped = Dictionary(grouping: totals, by: { $0.submission })
+        
+        guard let top = grouped
+            .map({ submission, items in
+                (
+                    submission: submission,
+                    count: items.reduce(0) { $0 + $1.count }
+                )
+            })
+                .sorted(by: { $0.count > $1.count })
+                .first
+        else {
+            return "None"
+        }
+        
+        return "\(top.submission.rawValue) (\(top.count))"
+    }
+    
+    var topSubmissionReceived: String {
+        let totals = filteredSessions
+            .flatMap { $0.submissionsReceived }
+            .filter { $0.count > 0 }
+        
+        let grouped = Dictionary(grouping: totals, by: { $0.submission })
+        
+        guard let top = grouped
+            .map({ submission, items in
+                (
+                    submission: submission,
+                    count: items.reduce(0) { $0 + $1.count }
+                )
+            })
+                .sorted(by: { $0.count > $1.count })
+                .first
+        else {
+            return "None"
+        }
+        
+        return "\(top.submission.rawValue) (\(top.count))"
+    }
+    var currentBeltDate: Date? {
+        let belt = appStore.beltRank(for: Date())
+        
+        return appStore.beltRankChanges
+            .filter { $0.beltLevel == belt }
+            .sorted { $0.date > $1.date }
+            .first?
+            .date
+    }
+    
+    var currentBeltTimeText: String {
+        guard let currentBeltDate else {
+            return "Not set"
+        }
+        
+        let months = Calendar.current.dateComponents(
+            [.month],
+            from: currentBeltDate,
+            to: Date()
+        ).month ?? 0
+        
+        if months < 1 {
+            return "Less than 1 month"
+        } else if months == 1 {
+            return "1 month"
+        } else {
+            return "\(months) months"
+        }
+    }
+    
     func submissionTotalsFinished() -> [(submission: SubmissionType, count: Int)] {
         var totals: [SubmissionType: Int] = [:]
         
@@ -4193,7 +4291,7 @@ struct BJJView: View {
     var bjjFatigueLabel: String {
         switch bjjFatigueScore {
         case 0:
-            return "No Load"
+            return "None"
         case 1...50:
             return "Low"
         case 51...100:
@@ -4225,7 +4323,7 @@ struct BJJView: View {
                 )
             }
     }
-    var bjjLoadChartData: [(date: Date, load: Int)] {
+    var trainingDemandChartData: [(date: Date, load: Int)] {
         filteredSessions
             .sorted { $0.date < $1.date }
             .map { session in
@@ -4246,24 +4344,71 @@ struct BJJView: View {
                 return (date: session.date, load: load)
             }
     }
+    var opponentBeltExposure: [(belt: BeltLevel, minutes: Int, percentage: Double)] {
+        let totalMinutes = filteredSessions
+            .flatMap { $0.rounds }
+            .reduce(0) { $0 + $1.durationMinutes }
+
+        guard totalMinutes > 0 else { return [] }
+
+        var totals: [BeltLevel: Int] = [:]
+
+        for session in filteredSessions {
+            for round in session.rounds {
+                totals[round.beltLevel, default: 0] += round.durationMinutes
+            }
+        }
+
+        let orderedBelts: [BeltLevel] = [.white, .blue, .purple, .brown, .black]
+
+        return orderedBelts
+            .map { belt in
+                let minutes = totals[belt] ?? 0
+                let percentage = Double(minutes) / Double(totalMinutes)
+                return (belt: belt, minutes: minutes, percentage: percentage)
+            }
+    }
     
     var body: some View {
         NavigationStack {
             List {
                 Section {
-                    VStack(alignment: .leading, spacing: 16) {
+                    let currentBelt = appStore.beltRank(for: Date())
+                    
+                    VStack(alignment: .leading, spacing: 14) {
+                        
                         HStack {
                             Text("BJJ")
-                                .font(.system(size: 42, weight: .bold))
-                                .foregroundColor(.appTextPrimary)
-                            
+                                .font(.headline)
+                                .foregroundColor(.appTextSecondary)
+
                             Spacer()
-                            
+
                             Button("Update Belt") {
                                 activeBJJSheet = .beltRank
                             }
                             .font(.subheadline)
                             .foregroundColor(.appPrimary)
+                        }
+
+                        BeltVisualBar(belt: currentBelt)
+                        
+                        VStack(spacing: 12) {
+                            
+                            MetricRow(
+                                title: "Time at Belt",
+                                value: currentBeltTimeText
+                            )
+                            
+                            if let currentBeltDate {
+                                MetricRow(
+                                    title: "Promoted",
+                                    value: currentBeltDate.formatted(
+                                        date: .abbreviated,
+                                        time: .omitted
+                                    )
+                                )
+                            }
                         }
                         
                         Button {
@@ -4318,431 +4463,475 @@ struct BJJView: View {
                         MetricRow(title: "Sessions", value: "\(filteredSessions.count)")
                         MetricRow(title: "Avg Readiness", value: String(format: "%.1f", filteredAverageReadiness))
                         
-                        HStack {
-                            Text("Current Belt")
-                                .foregroundColor(.appTextPrimary)
-                            
-                            Spacer()
-                            
-                            Text(appStore.beltRank(for: Date()).rawValue)
+                        VStack(alignment: .leading, spacing: 12) {
+
+                            MetricRow(title: "Live Rounds", value: "\(filteredTotalRounds)")
+                            MetricRow(title: "Live Minutes", value: "\(filteredTotalLiveMinutes)")
+                            MetricRow(title: "Training Demand", value: "\(bjjFatigueScore) — \(bjjFatigueLabel)")
+                            Divider()
+                            MetricRow(title: "Top Submission", value: topSubmissionFinished)
+                            MetricRow(title: "Most Often Submitted By", value: topSubmissionReceived)
+                        }
+                    }
+                    .listRowBackground(Color.appBackground)
+                    
+                    Section {
+                        VStack(alignment: .leading, spacing: 16) {
+                            Text("Opponent Belt Exposure")
                                 .font(.headline)
-                                .fontWeight(.bold)
-                                .foregroundColor(beltColor(appStore.beltRank(for: Date())))
-                        }
-                        
-                        Divider()
-                            .background(Color.appTextSecondary)
-                        
-                        MetricRow(title: "Live Rounds", value: "\(filteredTotalRounds)")
-                        MetricRow(title: "Live Minutes", value: "\(filteredTotalLiveMinutes)")
-                        MetricRow(title: "Avg Session RPE", value: String(format: "%.1f", filteredAverageSessionRPE))
-                        MetricRow(title: "Avg Round RPE", value: String(format: "%.1f", filteredAverageRoundRPE))
-                        MetricRow(title: "Hard Rounds", value: "\(filteredHardRounds)")
-                        MetricRow(title: "Hard Live Minutes", value: "\(filteredHardLiveMinutes)")
-                        MetricRow(title: "BJJ Load", value: "\(bjjFatigueScore) — \(bjjFatigueLabel)")
-                    }
-                    .padding()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.appCard)
-                    .cornerRadius(18)
-                }
-                .listRowBackground(Color.appBackground)
-                
-                Section {
-                    VStack(alignment: .leading, spacing: 16) {
-                        Text("Insights")
-                            .font(.headline)
-                            .foregroundColor(.appTextSecondary)
-                        
-                        MetricRow(
-                            title: "Low Readiness Sessions",
-                            value: "\(lowReadinessSessions.count)"
-                        )
-                        
-                        MetricRow(
-                            title: "High Output Despite Low Readiness",
-                            value: "\(highOutputLowReadinessSessions.count)"
-                        )
-                        
-                        if !filteredSessions.isEmpty {
-                            Text(insightSummary)
-                                .font(.subheadline)
                                 .foregroundColor(.appTextSecondary)
-                        }
-                    }
-                    .padding()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.appCard)
-                    .cornerRadius(18)
-                }
-                .listRowBackground(Color.appBackground)
-                
-                Section {
-                    VStack(alignment: .leading, spacing: 16) {
-                        Text("Readiness Trend")
-                            .font(.headline)
-                            .foregroundColor(.appTextSecondary)
-                        
-                        if readinessChartData.count < 2 {
-                            Text("Not enough readiness data yet.")
-                                .foregroundColor(.appTextSecondary)
-                        } else {
-                            Chart(readinessChartData, id: \.date) { item in
-                                LineMark(
-                                    x: .value("Date", item.date),
-                                    y: .value("Readiness", item.readiness)
-                                )
-                                
-                                PointMark(
-                                    x: .value("Date", item.date),
-                                    y: .value("Readiness", item.readiness)
-                                )
-                            }
-                            .chartYScale(domain: 1...10)
-                            .chartYAxis(.hidden)
-                            .chartXAxis(.hidden)
-                            .frame(height: 140)
-                        }
-                    }
-                    .padding()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.appCard)
-                    .cornerRadius(18)
-                }
-                .listRowBackground(Color.appBackground)
-                
-                Section {
-                    VStack(alignment: .leading, spacing: 16) {
-                        Text("BJJ Load Trend")
-                            .font(.headline)
-                            .foregroundColor(.appTextSecondary)
-                        
-                        if bjjLoadChartData.count < 2 {
-                            Text("Not enough load data yet.")
-                                .foregroundColor(.appTextSecondary)
-                        } else {
-                            Chart(bjjLoadChartData, id: \.date) { item in
-                                LineMark(
-                                    x: .value("Date", item.date),
-                                    y: .value("Load", item.load)
-                                )
-                                
-                                PointMark(
-                                    x: .value("Date", item.date),
-                                    y: .value("Load", item.load)
-                                )
-                            }
-                            .chartYAxis(.hidden)
-                            .chartXAxis(.hidden)
-                            .frame(height: 140)
-                        }
-                    }
-                    .padding()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.appCard)
-                    .cornerRadius(18)
-                }
-                .listRowBackground(Color.appBackground)
-                
-                Section {
-                    VStack(alignment: .leading, spacing: 16) {
-                        Text("Partner Belt Distribution")
-                            .font(.headline)
-                            .foregroundColor(.appTextSecondary)
-                        
-                        if partnerBeltChartData.isEmpty {
-                            Text("No live rounds in this range.")
-                                .foregroundColor(.appTextSecondary)
-                        } else {
-                            ZStack {
-                                Chart(partnerBeltChartData, id: \.belt) { item in
-                                    SectorMark(
-                                        angle: .value("Minutes", item.minutes),
-                                        innerRadius: .ratio(0.6)
-                                    )
-                                    .foregroundStyle(by: .value("Belt", item.belt.rawValue))
-                                }
-                                .frame(height: 220)
-                                
-                                VStack(spacing: 4) {
-                                    Text("\(filteredTotalLiveMinutes)")
-                                        .font(.largeTitle)
-                                        .fontWeight(.bold)
-                                        .foregroundColor(.appTextPrimary)
-                                    
-                                    Text("Live Min")
-                                        .foregroundColor(.appTextSecondary)
-                                }
-                            }
-                        }
-                    }
-                    .padding()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.appCard)
-                    .cornerRadius(18)
-                }
-                .listRowBackground(Color.appBackground)
-                
-                Section {
-                    VStack(alignment: .leading, spacing: 16) {
-                        Text("Submission Finishes")
-                            .font(.headline)
-                            .foregroundColor(.appTextSecondary)
-                        
-                        let finishedTotals = submissionTotalsFinished()
-                        
-                        if finishedTotals.isEmpty {
-                            Text("No submissions finished in this range.")
-                                .foregroundColor(.appTextSecondary)
-                        } else {
-                            ZStack {
-                                Chart(finishedTotals, id: \.submission) { item in
-                                    SectorMark(
-                                        angle: .value("Count", item.count),
-                                        innerRadius: .ratio(0.6)
-                                    )
-                                    .foregroundStyle(by: .value("Submission", item.submission.rawValue))
-                                }
-                                .frame(height: 220)
-                                
-                                VStack(spacing: 4) {
-                                    Text("\(totalSubmissionsFinished)")
-                                        .font(.largeTitle)
-                                        .fontWeight(.bold)
-                                        .foregroundColor(.appTextPrimary)
-                                    
-                                    Text("Finishes")
-                                        .foregroundColor(.appTextSecondary)
-                                }
-                            }
-                        }
-                    }
-                    .padding()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.appCard)
-                    .cornerRadius(18)
-                }
-                .listRowBackground(Color.appBackground)
-                
-                Section {
-                    VStack(alignment: .leading, spacing: 16) {
-                        Text("Submitted By")
-                            .font(.headline)
-                            .foregroundColor(.appTextSecondary)
-                        
-                        let receivedTotals = submissionTotalsReceived()
-                        
-                        if receivedTotals.isEmpty {
-                            Text("No submissions received in this range.")
-                                .foregroundColor(.appTextSecondary)
-                        } else {
-                            ZStack {
-                                Chart(receivedTotals, id: \.submission) { item in
-                                    SectorMark(
-                                        angle: .value("Count", item.count),
-                                        innerRadius: .ratio(0.6)
-                                    )
-                                    .foregroundStyle(by: .value("Submission", item.submission.rawValue))
-                                }
-                                .frame(height: 220)
-                                
-                                VStack(spacing: 4) {
-                                    Text("\(totalSubmissionsReceived)")
-                                        .font(.largeTitle)
-                                        .fontWeight(.bold)
-                                        .foregroundColor(.appTextPrimary)
-                                    
-                                    Text("Received")
-                                        .foregroundColor(.appTextSecondary)
-                                }
-                            }
-                        }
-                    }
-                    .padding()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.appCard)
-                    .cornerRadius(18)
-                }
-                .listRowBackground(Color.appBackground)
-                
-                Section {
-                    VStack(alignment: .leading, spacing: 16) {
-                        Text("Rounds by Partner Belt")
-                            .font(.headline)
-                            .foregroundColor(.appTextSecondary)
-                        
-                        let beltTotals = roundsByPartnerBelt()
-                        
-                        if beltTotals.isEmpty {
-                            Text("No live rounds in this range.")
-                                .foregroundColor(.appTextSecondary)
-                        } else {
-                            ForEach(beltTotals, id: \.belt) { item in
-                                MetricRow(
-                                    title: item.belt.rawValue,
-                                    value: "\(item.count)"
-                                )
-                            }
-                        }
-                    }
-                    .padding()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.appCard)
-                    .cornerRadius(18)
-                }
-                .listRowBackground(Color.appBackground)
-                
-                Section {
-                    VStack(alignment: .leading, spacing: 16) {
-                        Text("Live Minutes by Partner Belt")
-                            .font(.headline)
-                            .foregroundColor(.appTextSecondary)
-                        
-                        let beltMinutes = liveMinutesByPartnerBelt()
-                        
-                        if beltMinutes.isEmpty {
-                            Text("No live minutes in this range.")
-                                .foregroundColor(.appTextSecondary)
-                        } else {
-                            ForEach(beltMinutes, id: \.belt) { item in
-                                MetricRow(
-                                    title: item.belt.rawValue,
-                                    value: "\(item.minutes) min"
-                                )
-                            }
-                        }
-                    }
-                    .padding()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.appCard)
-                    .cornerRadius(18)
-                }
-                .listRowBackground(Color.appBackground)
-                
-                Section {
-                    VStack(alignment: .leading, spacing: 16) {
-                        Text("Submissions Finished")
-                            .font(.headline)
-                            .foregroundColor(.appTextSecondary)
-                        
-                        let finishedTotals = submissionTotalsFinished()
-                        
-                        if finishedTotals.isEmpty {
-                            Text("No submissions finished in this range.")
-                                .foregroundColor(.appTextSecondary)
-                        } else {
-                            ForEach(finishedTotals, id: \.submission) { item in
-                                MetricRow(
-                                    title: item.submission.rawValue,
-                                    value: "\(item.count)"
-                                )
-                            }
-                        }
-                    }
-                    .padding()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.appCard)
-                    .cornerRadius(18)
-                }
-                .listRowBackground(Color.appBackground)
-                
-                Section {
-                    VStack(alignment: .leading, spacing: 16) {
-                        Text("Submitted By")
-                            .font(.headline)
-                            .foregroundColor(.appTextSecondary)
-                        
-                        let receivedTotals = submissionTotalsReceived()
-                        
-                        if receivedTotals.isEmpty {
-                            Text("No submissions received in this range.")
-                                .foregroundColor(.appTextSecondary)
-                        } else {
-                            ForEach(receivedTotals, id: \.submission) { item in
-                                MetricRow(
-                                    title: item.submission.rawValue,
-                                    value: "\(item.count)"
-                                )
-                            }
-                        }
-                    }
-                    .padding()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.appCard)
-                    .cornerRadius(18)
-                }
-                .listRowBackground(Color.appBackground)
-                
-                Section {
-                    VStack(alignment: .leading, spacing: 16) {
-                        Button {
-                            withAnimation {
-                                showRecentSessions.toggle()
-                            }
-                        } label: {
-                            HStack {
-                                Text("Recent Sessions")
-                                    .font(.headline)
+
+                            if opponentBeltExposure.isEmpty {
+                                Text("No live rounds in this range.")
                                     .foregroundColor(.appTextSecondary)
-                                
-                                Spacer()
-                                
-                                Image(systemName: showRecentSessions ? "chevron.down" : "chevron.right")
-                                    .foregroundColor(.appTextSecondary)
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        
-                        if filteredSessions.isEmpty {
-                            Text("No BJJ sessions logged yet.")
-                                .foregroundColor(.appTextSecondary)
-                        } else if showRecentSessions {
-                            ForEach(filteredSessions) { session in
-                                NavigationLink {
-                                    BJJSessionDetailView(
-                                        appStore: appStore,
-                                        session: session
-                                    )
-                                } label: {
-                                    VStack(alignment: .leading, spacing: 8) {
-                                        Text(session.sessionType.rawValue)
-                                            .font(.headline)
+                            } else {
+                                ZStack {
+                                    Chart(opponentBeltExposure, id: \.belt) { item in
+                                        SectorMark(
+                                            angle: .value("Minutes", item.minutes),
+                                            innerRadius: .ratio(0.62)
+                                        )
+                                        .foregroundStyle(item.belt.displayColor)
+                                    }
+                                    .frame(height: 190)
+
+                                    VStack(spacing: 4) {
+                                        Text("\(filteredTotalLiveMinutes)")
+                                            .font(.largeTitle)
+                                            .fontWeight(.bold)
                                             .foregroundColor(.appTextPrimary)
-                                        
-                                        Text(formattedDateTime(session.date))
-                                            .font(.caption)
-                                            .foregroundColor(.appTextSecondary)
-                                        
-                                        Text("\(session.totalRounds) rounds • \(session.totalLiveMinutes) live min")
-                                            .foregroundColor(.appTextSecondary)
-                                        
-                                        Text("Session RPE: \(session.sessionRPE)/10")
-                                            .foregroundColor(.appTextSecondary)
-                                        
-                                        Text("Readiness: \(session.readinessAverage, specifier: "%.1f")/5")
+
+                                        Text("Live Min")
                                             .foregroundColor(.appTextSecondary)
                                     }
-                                    .padding()
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(Color.appCardSecondary)
-                                    .cornerRadius(14)
                                 }
-                                .buttonStyle(.plain)
-                            }
-                            .onDelete { offsets in
-                                for offset in offsets {
-                                    let session = filteredSessions[offset]
-                                    appStore.deleteBJJSession(id: session.id)
+
+                                VStack(spacing: 8) {
+                                    ForEach(opponentBeltExposure.filter { $0.minutes > 0 }, id: \.belt) { item in
+                                        HStack {
+                                            Circle()
+                                                .fill(item.belt.displayColor)
+                                                .frame(width: 10, height: 10)
+
+                                            Text(item.belt.rawValue)
+                                                .foregroundColor(.appTextPrimary)
+
+                                            Spacer()
+
+                                            Text("\(Int(item.percentage * 100))%")
+                                                .fontWeight(.semibold)
+                                                .foregroundColor(.appTextPrimary)
+
+                                            Text("• \(item.minutes) min")
+                                                .foregroundColor(.appTextSecondary)
+                                        }
+                                    }
                                 }
                             }
                         }
+                        .padding()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.appCard)
+                        .cornerRadius(18)
                     }
-                    .padding()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.appCard)
-                    .cornerRadius(18)
+                    .listRowBackground(Color.appBackground)
+                    
+                    Section {
+                        VStack(alignment: .leading, spacing: 16) {
+                            Text("Insights")
+                                .font(.headline)
+                                .foregroundColor(.appTextSecondary)
+                            
+                            MetricRow(
+                                title: "Low Readiness Sessions",
+                                value: "\(lowReadinessSessions.count)"
+                            )
+                            
+                            MetricRow(
+                                title: "High Output Despite Low Readiness",
+                                value: "\(highOutputLowReadinessSessions.count)"
+                            )
+                            
+                            if !filteredSessions.isEmpty {
+                                Text(insightSummary)
+                                    .font(.subheadline)
+                                    .foregroundColor(.appTextSecondary)
+                            }
+                        }
+                        .padding()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.appCard)
+                        .cornerRadius(18)
+                    }
+                    .listRowBackground(Color.appBackground)
+                    
+                    Section {
+                        VStack(alignment: .leading, spacing: 16) {
+                            Text("Readiness Trend")
+                                .font(.headline)
+                                .foregroundColor(.appTextSecondary)
+                            
+                            if readinessChartData.count < 2 {
+                                Text("Not enough readiness data yet.")
+                                    .foregroundColor(.appTextSecondary)
+                            } else {
+                                Chart(readinessChartData, id: \.date) { item in
+                                    LineMark(
+                                        x: .value("Date", item.date),
+                                        y: .value("Readiness", item.readiness)
+                                    )
+                                    
+                                    PointMark(
+                                        x: .value("Date", item.date),
+                                        y: .value("Readiness", item.readiness)
+                                    )
+                                }
+                                .chartYScale(domain: 1...5)
+                                .chartYAxis(.hidden)
+                                .chartXAxis(.hidden)
+                                .frame(height: 140)
+                            }
+                        }
+                        .padding()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.appCard)
+                        .cornerRadius(18)
+                    }
+                    .listRowBackground(Color.appBackground)
+                    
+                    Section {
+                        VStack(alignment: .leading, spacing: 16) {
+                            Text("Training Demand Trend")
+                                .font(.headline)
+                                .foregroundColor(.appTextSecondary)
+                            
+                            if trainingDemandChartData.count < 2 {
+                                Text("Not enough load data yet.")
+                                    .foregroundColor(.appTextSecondary)
+                            } else {
+                                Chart(trainingDemandChartData, id: \.date) { item in
+                                    LineMark(
+                                        x: .value("Date", item.date),
+                                        y: .value("Load", item.load)
+                                    )
+                                    
+                                    PointMark(
+                                        x: .value("Date", item.date),
+                                        y: .value("Load", item.load)
+                                    )
+                                }
+                                .chartYAxis(.hidden)
+                                .chartXAxis(.hidden)
+                                .frame(height: 140)
+                            }
+                        }
+                        .padding()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.appCard)
+                        .cornerRadius(18)
+                    }
+                    .listRowBackground(Color.appBackground)
+                    
+                    Section {
+                        VStack(alignment: .leading, spacing: 16) {
+                            Text("Partner Belt Distribution")
+                                .font(.headline)
+                                .foregroundColor(.appTextSecondary)
+                            
+                            if partnerBeltChartData.isEmpty {
+                                Text("No live rounds in this range.")
+                                    .foregroundColor(.appTextSecondary)
+                            } else {
+                                ZStack {
+                                    Chart(partnerBeltChartData, id: \.belt) { item in
+                                        SectorMark(
+                                            angle: .value("Minutes", item.minutes),
+                                            innerRadius: .ratio(0.6)
+                                        )
+                                        .foregroundStyle(by: .value("Belt", item.belt.rawValue))
+                                    }
+                                    .frame(height: 220)
+                                    
+                                    VStack(spacing: 4) {
+                                        Text("\(filteredTotalLiveMinutes)")
+                                            .font(.largeTitle)
+                                            .fontWeight(.bold)
+                                            .foregroundColor(.appTextPrimary)
+                                        
+                                        Text("Live Min")
+                                            .foregroundColor(.appTextSecondary)
+                                    }
+                                }
+                            }
+                        }
+                        .padding()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.appCard)
+                        .cornerRadius(18)
+                    }
+                    .listRowBackground(Color.appBackground)
+                    
+                    Section {
+                        VStack(alignment: .leading, spacing: 16) {
+                            Text("Submission Finishes")
+                                .font(.headline)
+                                .foregroundColor(.appTextSecondary)
+                            
+                            let finishedTotals = submissionTotalsFinished()
+                            
+                            if finishedTotals.isEmpty {
+                                Text("No submissions finished in this range.")
+                                    .foregroundColor(.appTextSecondary)
+                            } else {
+                                ZStack {
+                                    Chart(finishedTotals, id: \.submission) { item in
+                                        SectorMark(
+                                            angle: .value("Count", item.count),
+                                            innerRadius: .ratio(0.6)
+                                        )
+                                        .foregroundStyle(by: .value("Submission", item.submission.rawValue))
+                                    }
+                                    .frame(height: 220)
+                                    
+                                    VStack(spacing: 4) {
+                                        Text("\(totalSubmissionsFinished)")
+                                            .font(.largeTitle)
+                                            .fontWeight(.bold)
+                                            .foregroundColor(.appTextPrimary)
+                                        
+                                        Text("Finishes")
+                                            .foregroundColor(.appTextSecondary)
+                                    }
+                                }
+                            }
+                        }
+                        .padding()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.appCard)
+                        .cornerRadius(18)
+                    }
+                    .listRowBackground(Color.appBackground)
+                    
+                    Section {
+                        VStack(alignment: .leading, spacing: 16) {
+                            Text("Submitted By")
+                                .font(.headline)
+                                .foregroundColor(.appTextSecondary)
+                            
+                            let receivedTotals = submissionTotalsReceived()
+                            
+                            if receivedTotals.isEmpty {
+                                Text("No submissions received in this range.")
+                                    .foregroundColor(.appTextSecondary)
+                            } else {
+                                ZStack {
+                                    Chart(receivedTotals, id: \.submission) { item in
+                                        SectorMark(
+                                            angle: .value("Count", item.count),
+                                            innerRadius: .ratio(0.6)
+                                        )
+                                        .foregroundStyle(by: .value("Submission", item.submission.rawValue))
+                                    }
+                                    .frame(height: 220)
+                                    
+                                    VStack(spacing: 4) {
+                                        Text("\(totalSubmissionsReceived)")
+                                            .font(.largeTitle)
+                                            .fontWeight(.bold)
+                                            .foregroundColor(.appTextPrimary)
+                                        
+                                        Text("Received")
+                                            .foregroundColor(.appTextSecondary)
+                                    }
+                                }
+                            }
+                        }
+                        .padding()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.appCard)
+                        .cornerRadius(18)
+                    }
+                    .listRowBackground(Color.appBackground)
+                    
+                    Section {
+                        VStack(alignment: .leading, spacing: 16) {
+                            Text("Rounds by Partner Belt")
+                                .font(.headline)
+                                .foregroundColor(.appTextSecondary)
+                            
+                            let beltTotals = roundsByPartnerBelt()
+                            
+                            if beltTotals.isEmpty {
+                                Text("No live rounds in this range.")
+                                    .foregroundColor(.appTextSecondary)
+                            } else {
+                                ForEach(beltTotals, id: \.belt) { item in
+                                    MetricRow(
+                                        title: item.belt.rawValue,
+                                        value: "\(item.count)"
+                                    )
+                                }
+                            }
+                        }
+                        .padding()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.appCard)
+                        .cornerRadius(18)
+                    }
+                    .listRowBackground(Color.appBackground)
+                    
+                    Section {
+                        VStack(alignment: .leading, spacing: 16) {
+                            Text("Live Minutes by Partner Belt")
+                                .font(.headline)
+                                .foregroundColor(.appTextSecondary)
+                            
+                            let beltMinutes = liveMinutesByPartnerBelt()
+                            
+                            if beltMinutes.isEmpty {
+                                Text("No live minutes in this range.")
+                                    .foregroundColor(.appTextSecondary)
+                            } else {
+                                ForEach(beltMinutes, id: \.belt) { item in
+                                    MetricRow(
+                                        title: item.belt.rawValue,
+                                        value: "\(item.minutes) min"
+                                    )
+                                }
+                            }
+                        }
+                        .padding()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.appCard)
+                        .cornerRadius(18)
+                    }
+                    .listRowBackground(Color.appBackground)
+                    
+                    Section {
+                        VStack(alignment: .leading, spacing: 16) {
+                            Text("Submissions Finished")
+                                .font(.headline)
+                                .foregroundColor(.appTextSecondary)
+                            
+                            let finishedTotals = submissionTotalsFinished()
+                            
+                            if finishedTotals.isEmpty {
+                                Text("No submissions finished in this range.")
+                                    .foregroundColor(.appTextSecondary)
+                            } else {
+                                ForEach(finishedTotals, id: \.submission) { item in
+                                    MetricRow(
+                                        title: item.submission.rawValue,
+                                        value: "\(item.count)"
+                                    )
+                                }
+                            }
+                        }
+                        .padding()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.appCard)
+                        .cornerRadius(18)
+                    }
+                    .listRowBackground(Color.appBackground)
+                    
+                    Section {
+                        VStack(alignment: .leading, spacing: 16) {
+                            Text("Submitted By")
+                                .font(.headline)
+                                .foregroundColor(.appTextSecondary)
+                            
+                            let receivedTotals = submissionTotalsReceived()
+                            
+                            if receivedTotals.isEmpty {
+                                Text("No submissions received in this range.")
+                                    .foregroundColor(.appTextSecondary)
+                            } else {
+                                ForEach(receivedTotals, id: \.submission) { item in
+                                    MetricRow(
+                                        title: item.submission.rawValue,
+                                        value: "\(item.count)"
+                                    )
+                                }
+                            }
+                        }
+                        .padding()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.appCard)
+                        .cornerRadius(18)
+                    }
+                    .listRowBackground(Color.appBackground)
+                    
+                    Section {
+                        VStack(alignment: .leading, spacing: 16) {
+                            Button {
+                                withAnimation {
+                                    showRecentSessions.toggle()
+                                }
+                            } label: {
+                                HStack {
+                                    Text("Recent Sessions")
+                                        .font(.headline)
+                                        .foregroundColor(.appTextSecondary)
+                                    
+                                    Spacer()
+                                    
+                                    Image(systemName: showRecentSessions ? "chevron.down" : "chevron.right")
+                                        .foregroundColor(.appTextSecondary)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            
+                            if filteredSessions.isEmpty {
+                                Text("No BJJ sessions logged yet.")
+                                    .foregroundColor(.appTextSecondary)
+                            } else if showRecentSessions {
+                                ForEach(filteredSessions) { session in
+                                    NavigationLink {
+                                        BJJSessionDetailView(
+                                            appStore: appStore,
+                                            session: session
+                                        )
+                                    } label: {
+                                        VStack(alignment: .leading, spacing: 8) {
+                                            Text(session.sessionType.rawValue)
+                                                .font(.headline)
+                                                .foregroundColor(.appTextPrimary)
+                                            
+                                            Text(formattedDateTime(session.date))
+                                                .font(.caption)
+                                                .foregroundColor(.appTextSecondary)
+                                            
+                                            Text("\(session.totalRounds) rounds • \(session.totalLiveMinutes) live min")
+                                                .foregroundColor(.appTextSecondary)
+                                            
+                                            Text("Session RPE: \(session.sessionRPE)/10")
+                                                .foregroundColor(.appTextSecondary)
+                                            
+                                            Text("Readiness: \(session.readinessAverage, specifier: "%.1f")/5")
+                                                .foregroundColor(.appTextSecondary)
+                                        }
+                                        .padding()
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .background(Color.appCardSecondary)
+                                        .cornerRadius(14)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                                .onDelete { offsets in
+                                    for offset in offsets {
+                                        let session = filteredSessions[offset]
+                                        appStore.deleteBJJSession(id: session.id)
+                                    }
+                                }
+                            }
+                        }
+                        .padding()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.appCard)
+                        .cornerRadius(18)
+                    }
+                    .listRowBackground(Color.appBackground)
                 }
-                .listRowBackground(Color.appBackground)
             }
             .listStyle(.insetGrouped)
             .scrollContentBackground(.hidden)
@@ -4755,6 +4944,33 @@ struct BJJView: View {
                 case .logSession:
                     LogBJJSessionView(appStore: appStore)
                 }
+            }
+        }
+    }
+}
+struct BeltVisualBar: View {
+    let belt: BeltLevel
+    
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 10)
+                .fill(belt.displayColor)
+                .frame(maxWidth: .infinity)
+                .frame(height: 44)
+            
+            HStack {
+                Spacer()
+                
+                Rectangle()
+                    .fill(Color.black)
+                    .frame(width: 80, height: 44)
+                    .overlay(
+                        Rectangle()
+                            .stroke(Color.white.opacity(0.25), lineWidth: 1)
+                    )
+                
+                Spacer()
+                    .frame(width: 40)
             }
         }
     }
@@ -4803,34 +5019,34 @@ struct BeltRankChangeView: View {
 struct LogBJJSessionView: View {
     @Bindable var appStore: AppStore
     @Environment(\.dismiss) private var dismiss
-
+    
     @State private var currentStep = 1
-
+    
     @State private var sleep = 5
     @State private var stress = 5
     @State private var recovery = 5
     @State private var motivation = 5
     @State private var energy = 5
     @State private var mood = 5
-
+    
     @State private var sessionType: BJJSessionType = .gi
     @State private var totalDurationMinutes = 60
     @State private var sessionRPE = 6
     @State private var notes = ""
     @State private var didLiveRounds = true
-
+    
     @State private var rounds: [BJJRounds] = []
-
+    
     @State private var partnerBelt: BeltLevel = .blue
     @State private var roundDurationMinutes = 5
     @State private var roundRPE = 7
     @State private var roundNotes = ""
-
+    
     @State private var submissionsFinished: [SubmissionType: Int] = [:]
     @State private var submissionsReceived: [SubmissionType: Int] = [:]
     @State private var didFinishSubmissions = false
     @State private var didGetSubmitted = false
-
+    
     var stepTitle: String {
         switch currentStep {
         case 1:
@@ -4863,7 +5079,7 @@ struct LogBJJSessionView: View {
             return "Roll"
         }
     }
-
+    
     var body: some View {
         NavigationStack {
             Form {
@@ -4874,7 +5090,7 @@ struct LogBJJSessionView: View {
                 }
                 .listRowBackground(Color.clear)
                 .listRowInsets(EdgeInsets(top: 8, leading: 38, bottom: 8, trailing: 38))
-
+                
                 if currentStep == 1 {
                     Section {
                         RatingChipSelector(title: "Sleep", value: $sleep)
@@ -4890,7 +5106,7 @@ struct LogBJJSessionView: View {
                     }
                     .listRowBackground(Color.appCard)
                 }
-
+                
                 if currentStep == 2 {
                     Section {
                         
@@ -4924,22 +5140,22 @@ struct LogBJJSessionView: View {
                     }
                     .listRowBackground(Color.appCard)
                 }
-
+                
                 if currentStep == 3 {
-
+                    
                     Section {
-
+                        
                         BeltChipSelector(
                             title: "Opponent Belt",
                             selectedBelt: $partnerBelt
                         )
-
+                        
                         DurationStepperControl(
                             title: "Round Duration",
                             value: $roundDurationMinutes,
                             range: 1...30
                         )
-
+                        
                         LabeledChipSelector(
                             title: "Round Effort",
                             value: $roundRPE,
@@ -4952,7 +5168,7 @@ struct LogBJJSessionView: View {
                                 ("MAX EFFORT", 10)
                             ]
                         )
-
+                        
                         TextField(
                             "",
                             text: $roundNotes,
@@ -4962,7 +5178,7 @@ struct LogBJJSessionView: View {
                         )
                         .foregroundColor(.appTextPrimary)
                         .lineLimit(1...2)
-
+                        
                         Button {
                             let round = BJJRounds(
                                 id: UUID(),
@@ -4971,16 +5187,16 @@ struct LogBJJSessionView: View {
                                 roundRPE: roundRPE,
                                 notes: roundNotes
                             )
-
+                            
                             rounds.append(round)
                             roundNotes = ""
                         } label: {
                             HStack {
                                 Image(systemName: "plus.circle.fill")
-
+                                
                                 Text("Add Roll")
                                     .fontWeight(.semibold)
-
+                                
                                 Spacer()
                             }
                             .foregroundColor(.white)
@@ -4993,7 +5209,7 @@ struct LogBJJSessionView: View {
                     }
                     .listRowBackground(Color.appCard)
                     .tint(.appPrimary)
-
+                    
                     if !rounds.isEmpty {
                         Section {
                             VStack(alignment: .leading, spacing: 8) {
@@ -5001,7 +5217,7 @@ struct LogBJJSessionView: View {
                                     .font(.subheadline)
                                     .fontWeight(.semibold)
                                     .foregroundColor(.appTextPrimary)
-
+                                
                                 ForEach(Array(rounds.reversed())) { round in
                                     VStack(alignment: .leading, spacing: 8) {
                                         HStack {
@@ -5009,14 +5225,14 @@ struct LogBJJSessionView: View {
                                                 .font(.headline)
                                                 .fontWeight(.semibold)
                                                 .foregroundColor(round.beltLevel.displayColor)
-
+                                            
                                             Spacer()
-
+                                            
                                             Text("\(round.durationMinutes) min")
                                                 .font(.subheadline)
                                                 .foregroundColor(.appTextSecondary)
                                         }
-
+                                        
                                         Text(roundEffortLabel(round.roundRPE))
                                             .font(.subheadline)
                                             .foregroundColor(.appTextSecondary)
@@ -5030,27 +5246,27 @@ struct LogBJJSessionView: View {
                         .listRowBackground(Color.appCard)
                     }
                 }
-
+                
                 if currentStep == 4 {
-
+                    
                     Section {
                         YesNoChipSelector(
                             title: "Finished Submissions?",
                             value: $didFinishSubmissions
                         )
-
+                        
                         if didFinishSubmissions {
                             SubmissionSelectionSection(
                                 title: "Submissions Finished",
                                 submissionCounts: $submissionsFinished
                             )
                         }
-
+                        
                         YesNoChipSelector(
                             title: "Got Submitted?",
                             value: $didGetSubmitted
                         )
-
+                        
                         if didGetSubmitted {
                             SubmissionSelectionSection(
                                 title: "Submitted By",
@@ -5067,10 +5283,10 @@ struct LogBJJSessionView: View {
             .navigationTitle(stepTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-
+                
                 ToolbarItem(placement: .confirmationAction) {
                     Button(currentStep == 4 ? "Save" : "Next") {
-
+                        
                         if currentStep == 2 && !didLiveRounds {
                             appStore.addBJJSession(
                                 sessionType: sessionType,
@@ -5087,12 +5303,12 @@ struct LogBJJSessionView: View {
                                 submissionsFinished: [],
                                 submissionsReceived: []
                             )
-
+                            
                             dismiss()
-
+                            
                         } else if currentStep < 4 {
                             currentStep += 1
-
+                            
                         } else {
                             appStore.addBJJSession(
                                 sessionType: sessionType,
@@ -5121,12 +5337,12 @@ struct LogBJJSessionView: View {
                                     )
                                 }
                             )
-
+                            
                             dismiss()
                         }
                     }
                 }
-
+                
                 ToolbarItem(placement: .topBarLeading) {
                     if currentStep > 1 {
                         Button("Back") {
@@ -5144,163 +5360,140 @@ struct LogBJJSessionView: View {
         }
     }
 }
-extension BeltLevel {
-    var displayColor: Color {
-        switch self {
-        case .white:
-            return .white
-
-        case .blue:
-            return .blue
-
-        case .purple:
-            return .purple
-
-        case .brown:
-            return .brown
-
-        case .black:
-            return .red
-
-        case .unknown:
-            return .appTextSecondary
-        }
-    }
-}
 struct RatingChipSelector: View {
-    let title: String
-    @Binding var value: Int
-    var range: ClosedRange<Int> = 1...5
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .font(.subheadline)
-                .fontWeight(.semibold)
-                .foregroundColor(.appTextPrimary)
-
-            LazyVGrid(
-                columns: Array(
-                    repeating: GridItem(.flexible()),
-                    count: 5
-                ),
-                spacing: 8
-            ) {
-                ForEach(Array(range), id: \.self) { number in
-                    Button {
-                        value = number
-                    } label: {
-                        Text("\(number)")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .foregroundColor(
-                                value == number
-                                ? .white
-                                : .appTextSecondary
-                            )
-                            .frame(height: 38)
-                            .frame(maxWidth: .infinity)
-                            .background(
-                                value == number
-                                ? Color.appPrimary
-                                : Color.appCardSecondary
-                            )
-                            .cornerRadius(10)
+        let title: String
+        @Binding var value: Int
+        var range: ClosedRange<Int> = 1...5
+        
+        var body: some View {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(title)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.appTextPrimary)
+                
+                LazyVGrid(
+                    columns: Array(
+                        repeating: GridItem(.flexible()),
+                        count: 5
+                    ),
+                    spacing: 8
+                ) {
+                    ForEach(Array(range), id: \.self) { number in
+                        Button {
+                            value = number
+                        } label: {
+                            Text("\(number)")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                                .foregroundColor(
+                                    value == number
+                                    ? .white
+                                    : .appTextSecondary
+                                )
+                                .frame(height: 38)
+                                .frame(maxWidth: .infinity)
+                                .background(
+                                    value == number
+                                    ? Color.appPrimary
+                                    : Color.appCardSecondary
+                                )
+                                .cornerRadius(10)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
             }
+            .padding(.vertical, 2)
         }
-        .padding(.vertical, 2)
     }
-}
 struct LabeledChipSelector: View {
-    let title: String
-    @Binding var value: Int
-    let options: [(label: String, value: Int)]
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.subheadline)
-                .fontWeight(.semibold)
-                .foregroundColor(.appTextPrimary)
-
-            VStack(spacing: 4) {
-                ForEach(options, id: \.value) { option in
+        let title: String
+        @Binding var value: Int
+        let options: [(label: String, value: Int)]
+        
+        var body: some View {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(title)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.appTextPrimary)
+                
+                VStack(spacing: 4) {
+                    ForEach(options, id: \.value) { option in
+                        Button {
+                            value = option.value
+                        } label: {
+                            Text(option.label)
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                                .foregroundColor(value == option.value ? .white : .appTextSecondary)
+                                .frame(height: 38)
+                                .frame(maxWidth: .infinity)
+                                .background(value == option.value ? Color.appPrimary : Color.appCardSecondary)
+                                .cornerRadius(12)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .padding(.vertical, 2)
+        }
+    }
+struct YesNoChipSelector: View {
+        let title: String
+        @Binding var value: Bool
+        
+        var body: some View {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(title)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.appTextPrimary)
+                
+                HStack(spacing: 8) {
                     Button {
-                        value = option.value
+                        value = true
                     } label: {
-                        Text(option.label)
+                        Text("Yes")
                             .font(.subheadline)
                             .fontWeight(.semibold)
-                            .foregroundColor(value == option.value ? .white : .appTextSecondary)
-                            .frame(height: 38)
+                            .foregroundColor(value ? .white : .appTextSecondary)
+                            .frame(height: 42)
                             .frame(maxWidth: .infinity)
-                            .background(value == option.value ? Color.appPrimary : Color.appCardSecondary)
+                            .background(value ? Color.appPrimary : Color.appCardSecondary)
+                            .cornerRadius(12)
+                    }
+                    .buttonStyle(.plain)
+                    
+                    Button {
+                        value = false
+                    } label: {
+                        Text("No")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(!value ? .white : .appTextSecondary)
+                            .frame(height: 42)
+                            .frame(maxWidth: .infinity)
+                            .background(!value ? Color.appPrimary : Color.appCardSecondary)
                             .cornerRadius(12)
                     }
                     .buttonStyle(.plain)
                 }
             }
+            .padding(.vertical, 2)
         }
-        .padding(.vertical, 2)
     }
-}
-struct YesNoChipSelector: View {
-    let title: String
-    @Binding var value: Bool
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.subheadline)
-                .fontWeight(.semibold)
-                .foregroundColor(.appTextPrimary)
-
-            HStack(spacing: 8) {
-                Button {
-                    value = true
-                } label: {
-                    Text("Yes")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundColor(value ? .white : .appTextSecondary)
-                        .frame(height: 42)
-                        .frame(maxWidth: .infinity)
-                        .background(value ? Color.appPrimary : Color.appCardSecondary)
-                        .cornerRadius(12)
-                }
-                .buttonStyle(.plain)
-
-                Button {
-                    value = false
-                } label: {
-                    Text("No")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundColor(!value ? .white : .appTextSecondary)
-                        .frame(height: 42)
-                        .frame(maxWidth: .infinity)
-                        .background(!value ? Color.appPrimary : Color.appCardSecondary)
-                        .cornerRadius(12)
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(.vertical, 2)
-    }
-}
 struct SessionTypeChipSelector: View {
     @Binding var selectedType: BJJSessionType
-
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Training Type")
                 .font(.subheadline)
                 .fontWeight(.semibold)
                 .foregroundColor(.appTextPrimary)
-
+            
             HStack(spacing: 8) {
                 ForEach(BJJSessionType.allCases, id: \.self) { type in
                     Button {
@@ -5330,16 +5523,16 @@ struct SessionTypeChipSelector: View {
 }
 struct DurationChipSelector: View {
     @Binding var duration: Int
-
+    
     let options = [60, 75, 90, 120]
-
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Duration")
                 .font(.subheadline)
                 .fontWeight(.semibold)
                 .foregroundColor(.appTextPrimary)
-
+            
             HStack(spacing: 8) {
                 ForEach(options, id: \.self) { option in
                     Button {
@@ -5364,16 +5557,16 @@ struct DurationChipSelector: View {
 struct BeltChipSelector: View {
     let title: String
     @Binding var selectedBelt: BeltLevel
-
+    
     let belts: [BeltLevel] = [.white, .blue, .purple, .brown, .black]
-
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
                 .font(.subheadline)
                 .fontWeight(.semibold)
                 .foregroundColor(.appTextPrimary)
-
+            
             HStack(spacing: 8) {
                 ForEach(belts, id: \.self) { belt in
                     Button {
@@ -5406,14 +5599,14 @@ struct DurationStepperControl: View {
     let title: String
     @Binding var value: Int
     var range: ClosedRange<Int> = 1...30
-
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
                 .font(.subheadline)
                 .fontWeight(.semibold)
                 .foregroundColor(.appTextPrimary)
-
+            
             HStack {
                 Button {
                     if value > range.lowerBound {
@@ -5428,16 +5621,16 @@ struct DurationStepperControl: View {
                         .cornerRadius(12)
                 }
                 .buttonStyle(.plain)
-
+                
                 Spacer()
-
+                
                 Text("\(value) min")
                     .font(.title3)
                     .fontWeight(.bold)
                     .foregroundColor(.appTextPrimary)
-
+                
                 Spacer()
-
+                
                 Button {
                     if value < range.upperBound {
                         value += 1
@@ -5459,22 +5652,22 @@ struct DurationStepperControl: View {
 struct SubmissionSelectionSection: View {
     let title: String
     @Binding var submissionCounts: [SubmissionType: Int]
-
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(title)
                 .font(.subheadline)
                 .fontWeight(.semibold)
                 .foregroundColor(.appTextPrimary)
-
+            
             ForEach(SubmissionType.allCases, id: \.self) { submission in
                 HStack {
                     Text(submission.rawValue)
                         .font(.subheadline)
                         .foregroundColor(.appTextPrimary)
-
+                    
                     Spacer()
-
+                    
                     Button {
                         let current = submissionCounts[submission] ?? 0
                         if current > 0 {
@@ -5491,14 +5684,14 @@ struct SubmissionSelectionSection: View {
                     }
                     .buttonStyle(.plain)
                     .disabled((submissionCounts[submission] ?? 0) == 0)
-
+                    
                     Text("\(submissionCounts[submission] ?? 0)")
                         .font(.headline)
                         .fontWeight(.semibold)
                         .foregroundColor(.appTextPrimary)
                         .frame(width: 32)
                         .monospacedDigit()
-
+                    
                     Button {
                         let current = submissionCounts[submission] ?? 0
                         submissionCounts[submission] = current + 1
@@ -5521,185 +5714,165 @@ struct BJJSessionDetailView: View {
     @Bindable var appStore: AppStore
     var session: BJJSession
     
-    @State private var showEditSheet = false
-    @State private var showEditRoundsSheet = false
-    @State private var showEditSubmissionsSheet = false
-    
     func submissionSummary(_ submissions: [SubmissionCount]) -> String {
         submissions
             .filter { $0.count > 0 }
-            .sorted { $0.submission.rawValue < $1.submission.rawValue }
+            .sorted { $0.count > $1.count }
             .map { "\($0.submission.rawValue) x\($0.count)" }
             .joined(separator: ", ")
     }
     
+    func roundEffortLabel(_ rpe: Int) -> String {
+        switch rpe {
+        case 5: return "Very Easy"
+        case 6: return "Easy"
+        case 7: return "Medium"
+        case 8: return "Hard"
+        case 9: return "Very Hard"
+        case 10: return "Max Effort"
+        default: return "Roll"
+        }
+    }
+    
+    func sessionEffortLabel(_ effort: Int) -> String {
+        switch effort {
+        case 1: return "Light Drilling"
+        case 2: return "Moderate"
+        case 3: return "Hard"
+        case 4: return "Very Hard"
+        case 5: return "Competition Style"
+        default: return "Session"
+        }
+    }
+    
     var body: some View {
-        List {
-            Section("Session") {
-                HStack {
-                    Text("Type")
-                    Spacer()
-                    Text(session.sessionType.rawValue)
-                        .foregroundColor(.secondary)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                
+                Text(session.sessionType.rawValue)
+                    .font(.system(size: 40, weight: .bold))
+                    .foregroundColor(.appTextPrimary)
+                
+                Text(formattedDateTime(session.date))
+                    .foregroundColor(.appTextSecondary)
+                
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Session")
+                        .font(.headline)
+                        .foregroundColor(.appTextSecondary)
+                    
+                    MetricRow(title: "Duration", value: "\(session.totalDurationMinutes) min")
+                    MetricRow(title: "Effort", value: sessionEffortLabel(session.sessionRPE))
+                    MetricRow(title: "Live Rounds", value: "\(session.totalRounds)")
+                    MetricRow(title: "Live Minutes", value: "\(session.totalLiveMinutes)")
+                }
+                .padding()
+                .background(Color.appCard)
+                .cornerRadius(18)
+                
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Readiness")
+                        .font(.headline)
+                        .foregroundColor(.appTextSecondary)
+                    
+                    MetricRow(title: "Average", value: String(format: "%.1f / 5", session.readinessAverage))
+                    MetricRow(title: "Sleep", value: "\(session.sleep) / 5")
+                    MetricRow(title: "Stress", value: "\(session.stress) / 5")
+                    MetricRow(title: "Recovery", value: "\(session.recovery) / 5")
+                    MetricRow(title: "Motivation", value: "\(session.motivation) / 5")
+                    MetricRow(title: "Energy", value: "\(session.energy) / 5")
+                    MetricRow(title: "Mood", value: "\(session.mood) / 5")
+                }
+                .padding()
+                .background(Color.appCard)
+                .cornerRadius(18)
+                
+                if !session.rounds.isEmpty {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Live Rolls")
+                            .font(.headline)
+                            .foregroundColor(.appTextSecondary)
+                        
+                        ForEach(session.rounds.reversed()) { round in
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    Text("\(round.beltLevel.rawValue) Belt")
+                                        .font(.headline)
+                                        .fontWeight(.semibold)
+                                        .foregroundColor(round.beltLevel.displayColor)
+                                    
+                                    Spacer()
+                                    
+                                    Text("\(round.durationMinutes) min")
+                                        .foregroundColor(.appTextSecondary)
+                                }
+                                
+                                Text(roundEffortLabel(round.roundRPE))
+                                    .foregroundColor(.appTextSecondary)
+                                
+                                if !round.notes.isEmpty {
+                                    Text(round.notes)
+                                        .font(.caption)
+                                        .foregroundColor(.appTextSecondary)
+                                }
+                            }
+                            .padding()
+                            .background(Color.appCardSecondary)
+                            .cornerRadius(14)
+                        }
+                    }
+                    .padding()
+                    .background(Color.appCard)
+                    .cornerRadius(18)
                 }
                 
-                HStack {
-                    Text("Date")
-                    Spacer()
-                    Text(formattedDateTime(session.date))
-                        .foregroundColor(.secondary)
+                if !session.submissionsFinished.filter({ $0.count > 0 }).isEmpty {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Submissions Finished")
+                            .font(.headline)
+                            .foregroundColor(.appTextSecondary)
+                        
+                        Text(submissionSummary(session.submissionsFinished))
+                            .foregroundColor(.appTextPrimary)
+                    }
+                    .padding()
+                    .background(Color.appCard)
+                    .cornerRadius(18)
                 }
                 
-                HStack {
-                    Text("Duration")
-                    Spacer()
-                    Text("\(session.totalDurationMinutes) min")
-                        .foregroundColor(.secondary)
-                }
-                
-                HStack {
-                    Text("Session RPE")
-                    Spacer()
-                    Text("\(session.sessionRPE)/10")
-                        .foregroundColor(.secondary)
+                if !session.submissionsReceived.filter({ $0.count > 0 }).isEmpty {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Submitted By")
+                            .font(.headline)
+                            .foregroundColor(.appTextSecondary)
+                        
+                        Text(submissionSummary(session.submissionsReceived))
+                            .foregroundColor(.appTextPrimary)
+                    }
+                    .padding()
+                    .background(Color.appCard)
+                    .cornerRadius(18)
                 }
                 
                 if !session.notes.isEmpty {
-                    Text(session.notes)
-                        .foregroundColor(.secondary)
-                }
-            }
-            Section("Pre-Session Readiness") {
-                HStack {
-                    Text("Sleep")
-                    Spacer()
-                    Text("\(session.sleep)/10")
-                        .foregroundColor(.secondary)
-                }
-                
-                HStack {
-                    Text("Stress")
-                    Spacer()
-                    Text("\(session.stress)/10")
-                        .foregroundColor(.secondary)
-                }
-                
-                HStack {
-                    Text("Recovery")
-                    Spacer()
-                    Text("\(session.recovery)/10")
-                        .foregroundColor(.secondary)
-                }
-                
-                HStack {
-                    Text("Motivation")
-                    Spacer()
-                    Text("\(session.motivation)/10")
-                        .foregroundColor(.secondary)
-                }
-                
-                HStack {
-                    Text("Energy")
-                    Spacer()
-                    Text("\(session.energy)/10")
-                        .foregroundColor(.secondary)
-                }
-                
-                HStack {
-                    Text("Mood")
-                    Spacer()
-                    Text("\(session.mood)/10")
-                        .foregroundColor(.secondary)
-                }
-                
-                HStack {
-                    Text("Average")
-                    Spacer()
-                    Text("\(session.readinessAverage, specifier: "%.1f")/5")
-                        .font(.headline)
-                }
-            }
-            Section("Live Rolls") {
-                if session.rounds.isEmpty {
-                    Text("No live rolls logged.")
-                        .foregroundColor(.secondary)
-                } else {
-                    ForEach(session.rounds) { round in
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("\(round.durationMinutes) min vs \(round.beltLevel.rawValue)")
-                                .font(.headline)
-                            
-                            Text("Round RPE: \(round.roundRPE)/10")
-                                .foregroundColor(.secondary)
-                            
-                            if !round.notes.isEmpty {
-                                Text(round.notes)
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                        .padding(.vertical, 4)
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Notes")
+                            .font(.headline)
+                            .foregroundColor(.appTextSecondary)
+                        
+                        Text(session.notes)
+                            .foregroundColor(.appTextPrimary)
                     }
+                    .padding()
+                    .background(Color.appCard)
+                    .cornerRadius(18)
                 }
             }
-            
-            Section("Submissions Finished") {
-                if session.submissionsFinished.filter({ $0.count > 0 }).isEmpty {
-                    Text("None logged.")
-                        .foregroundColor(.secondary)
-                } else {
-                    Text(submissionSummary(session.submissionsFinished))
-                }
-            }
-            
-            Section("Submitted By") {
-                if session.submissionsReceived.filter({ $0.count > 0 }).isEmpty {
-                    Text("None logged.")
-                        .foregroundColor(.secondary)
-                } else {
-                    Text(submissionSummary(session.submissionsReceived))
-                }
-            }
+            .padding()
         }
-        .navigationTitle("BJJ Session")
-        
-        .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                Button("Edit Rolls") {
-                    showEditRoundsSheet = true
-                }
-            }
-            
-            ToolbarItemGroup(placement: .topBarTrailing) {
-                Button("Edit Subs") {
-                    showEditSubmissionsSheet = true
-                }
-                
-                Button("Edit") {
-                    showEditSheet = true
-                }
-            }
-        }
-        
-        .sheet(isPresented: $showEditSheet) {
-            EditBJJSessionView(
-                appStore: appStore,
-                session: session
-            )
-        }
-        
-        .sheet(isPresented: $showEditRoundsSheet) {
-            EditBJJRoundsView(
-                appStore: appStore,
-                session: session
-            )
-        }
-        .sheet(isPresented: $showEditSubmissionsSheet) {
-            EditBJJSubmissionsView(
-                appStore: appStore,
-                session: session
-            )
-        }
+        .background(Color.appBackground.ignoresSafeArea())
+        .navigationTitle("Session Detail")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 struct EditBJJSessionView: View {
@@ -6334,9 +6507,9 @@ struct EditTemplateExerciseView: View {
     
 }
 extension Array where Element: Hashable {
-func removingDuplicates() -> [Element] {
-var seen = Set<Element>()
-return filter { seen.insert($0).inserted }
-}
+    func removingDuplicates() -> [Element] {
+        var seen = Set<Element>()
+        return filter { seen.insert($0).inserted }
+    }
 }
 
