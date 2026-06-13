@@ -4637,29 +4637,62 @@ struct BJJView: View {
                             Text("Partner Belt Distribution")
                                 .font(.headline)
                                 .foregroundColor(.appTextSecondary)
-                            
-                            if partnerBeltChartData.isEmpty {
+
+                            let beltTotals = roundsByPartnerBelt()
+                            let totalBeltRounds = beltTotals.reduce(0) { $0 + $1.count }
+                            let orderedBeltTotals = [BeltLevel.white, .blue, .purple, .brown, .black]
+                                .compactMap { belt in
+                                    beltTotals.first { $0.belt == belt }
+                                }
+
+                            if beltTotals.isEmpty {
                                 Text("No live rounds in this range.")
                                     .foregroundColor(.appTextSecondary)
                             } else {
                                 ZStack {
-                                    Chart(partnerBeltChartData, id: \.belt) { item in
+                                    Chart(orderedbeltTotals, id: \.belt) { item in
                                         SectorMark(
-                                            angle: .value("Minutes", item.minutes),
+                                            angle: .value("Rounds", item.count),
                                             innerRadius: .ratio(0.6)
                                         )
-                                        .foregroundStyle(by: .value("Belt", item.belt.rawValue))
+                                        .foregroundStyle(item.belt.displayColor)
                                     }
                                     .frame(height: 220)
-                                    
+
                                     VStack(spacing: 4) {
-                                        Text("\(filteredTotalLiveMinutes)")
+                                        Text("\(totalBeltRounds)")
                                             .font(.largeTitle)
                                             .fontWeight(.bold)
                                             .foregroundColor(.appTextPrimary)
-                                        
-                                        Text("Live Min")
+
+                                        Text("Rounds")
                                             .foregroundColor(.appTextSecondary)
+                                    }
+                                }
+
+                                VStack(spacing: 8) {
+                                    ForEach(orderedbeltTotals, id: \.belt) { item in
+                                        let percentage = totalBeltRounds > 0
+                                            ? Double(item.count) / Double(totalBeltRounds)
+                                            : 0
+
+                                        HStack {
+                                            Circle()
+                                                .fill(item.belt.displayColor)
+                                                .frame(width: 10, height: 10)
+
+                                            Text(item.belt.rawValue)
+                                                .foregroundColor(.appTextPrimary)
+
+                                            Spacer()
+
+                                            Text("\(Int(percentage * 100))%")
+                                                .fontWeight(.semibold)
+                                                .foregroundColor(.appTextPrimary)
+
+                                            Text("· \(item.count) \(item.count == 1 ? "round" : "rounds")")
+                                                .foregroundColor(.appTextSecondary)
+                                        }
                                     }
                                 }
                             }
@@ -4703,6 +4736,22 @@ struct BJJView: View {
                                             .foregroundColor(.appTextSecondary)
                                     }
                                 }
+                                VStack(spacing: 8) {
+                                    ForEach(finishedTotals.prefix(5), id: \.submission) { item in
+                                        HStack {
+                                            Circle()
+                                                .fill(Color.appPrimary)
+                                                .frame(width: 10, height: 10)
+
+                                            Text(item.submission.rawValue)
+
+                                            Spacer()
+
+                                            Text("\(item.count)")
+                                                .fontWeight(.semibold)
+                                        }
+                                    }
+                                }
                             }
                         }
                         .padding()
@@ -4743,114 +4792,6 @@ struct BJJView: View {
                                         Text("Received")
                                             .foregroundColor(.appTextSecondary)
                                     }
-                                }
-                            }
-                        }
-                        .padding()
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.appCard)
-                        .cornerRadius(18)
-                    }
-                    .listRowBackground(Color.appBackground)
-                    
-                    Section {
-                        VStack(alignment: .leading, spacing: 16) {
-                            Text("Rounds by Partner Belt")
-                                .font(.headline)
-                                .foregroundColor(.appTextSecondary)
-                            
-                            let beltTotals = roundsByPartnerBelt()
-                            
-                            if beltTotals.isEmpty {
-                                Text("No live rounds in this range.")
-                                    .foregroundColor(.appTextSecondary)
-                            } else {
-                                ForEach(beltTotals, id: \.belt) { item in
-                                    MetricRow(
-                                        title: item.belt.rawValue,
-                                        value: "\(item.count)"
-                                    )
-                                }
-                            }
-                        }
-                        .padding()
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.appCard)
-                        .cornerRadius(18)
-                    }
-                    .listRowBackground(Color.appBackground)
-                    
-                    Section {
-                        VStack(alignment: .leading, spacing: 16) {
-                            Text("Live Minutes by Partner Belt")
-                                .font(.headline)
-                                .foregroundColor(.appTextSecondary)
-                            
-                            let beltMinutes = liveMinutesByPartnerBelt()
-                            
-                            if beltMinutes.isEmpty {
-                                Text("No live minutes in this range.")
-                                    .foregroundColor(.appTextSecondary)
-                            } else {
-                                ForEach(beltMinutes, id: \.belt) { item in
-                                    MetricRow(
-                                        title: item.belt.rawValue,
-                                        value: "\(item.minutes) min"
-                                    )
-                                }
-                            }
-                        }
-                        .padding()
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.appCard)
-                        .cornerRadius(18)
-                    }
-                    .listRowBackground(Color.appBackground)
-                    
-                    Section {
-                        VStack(alignment: .leading, spacing: 16) {
-                            Text("Submissions Finished")
-                                .font(.headline)
-                                .foregroundColor(.appTextSecondary)
-                            
-                            let finishedTotals = submissionTotalsFinished()
-                            
-                            if finishedTotals.isEmpty {
-                                Text("No submissions finished in this range.")
-                                    .foregroundColor(.appTextSecondary)
-                            } else {
-                                ForEach(finishedTotals, id: \.submission) { item in
-                                    MetricRow(
-                                        title: item.submission.rawValue,
-                                        value: "\(item.count)"
-                                    )
-                                }
-                            }
-                        }
-                        .padding()
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.appCard)
-                        .cornerRadius(18)
-                    }
-                    .listRowBackground(Color.appBackground)
-                    
-                    Section {
-                        VStack(alignment: .leading, spacing: 16) {
-                            Text("Submitted By")
-                                .font(.headline)
-                                .foregroundColor(.appTextSecondary)
-                            
-                            let receivedTotals = submissionTotalsReceived()
-                            
-                            if receivedTotals.isEmpty {
-                                Text("No submissions received in this range.")
-                                    .foregroundColor(.appTextSecondary)
-                            } else {
-                                ForEach(receivedTotals, id: \.submission) { item in
-                                    MetricRow(
-                                        title: item.submission.rawValue,
-                                        value: "\(item.count)"
-                                    )
                                 }
                             }
                         }
