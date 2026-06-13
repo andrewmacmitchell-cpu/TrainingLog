@@ -5744,7 +5744,44 @@ struct BJJSessionDetailView: View {
         default: return "Session"
         }
     }
-    
+    var sessionTrainingDemand: Int {
+        let liveMinutesScore = session.totalLiveMinutes
+
+        let hardMinutes = session.rounds
+            .filter { $0.roundRPE >= 8 }
+            .reduce(0) { $0 + $1.durationMinutes }
+
+        let hardRounds = session.rounds
+            .filter { $0.roundRPE >= 8 }
+            .count
+
+        let rpeScore = session.sessionRPE * 5
+
+        return liveMinutesScore + (hardMinutes * 2) + (hardRounds * 5) + rpeScore
+    }
+    var sessionTrainingDemandLabel: String {
+        switch sessionTrainingDemand {
+        case 0:
+            return "None"
+        case 1...50:
+            return "Low"
+        case 51...100:
+            return "Moderate"
+        case 101...160:
+            return "High"
+        default:
+            return "Very High"
+        }
+    }
+    var readinessColor: Color {
+        if session.readinessAverage >= 4.0 {
+            return .green
+        } else if session.readinessAverage >= 3.0 {
+            return .yellow
+        } else {
+            return .red
+        }
+    }
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
@@ -5765,6 +5802,8 @@ struct BJJSessionDetailView: View {
                     MetricRow(title: "Effort", value: sessionEffortLabel(session.sessionRPE))
                     MetricRow(title: "Live Rounds", value: "\(session.totalRounds)")
                     MetricRow(title: "Live Minutes", value: "\(session.totalLiveMinutes)")
+                    MetricRow(title: "Training Demand", value: "\(sessionTrainingDemand) — \(sessionTrainingDemandLabel)"
+                    )
                 }
                 .padding()
                 .background(Color.appCard)
@@ -5775,13 +5814,24 @@ struct BJJSessionDetailView: View {
                         .font(.headline)
                         .foregroundColor(.appTextSecondary)
                     
-                    MetricRow(title: "Average", value: String(format: "%.1f / 5", session.readinessAverage))
-                    MetricRow(title: "Sleep", value: "\(session.sleep) / 5")
-                    MetricRow(title: "Stress", value: "\(session.stress) / 5")
-                    MetricRow(title: "Recovery", value: "\(session.recovery) / 5")
-                    MetricRow(title: "Motivation", value: "\(session.motivation) / 5")
-                    MetricRow(title: "Energy", value: "\(session.energy) / 5")
-                    MetricRow(title: "Mood", value: "\(session.mood) / 5")
+                    HStack {
+                        Text("Average")
+                            .foregroundColor(.appTextPrimary)
+
+                        Spacer()
+
+                        Text(String(format: "%.1f / 5", session.readinessAverage))
+                            .fontWeight(.semibold)
+                            .foregroundColor(readinessColor)
+                    }
+                    Divider()
+
+                    MetricRow(title: "Sleep", value: "\(session.sleep)")
+                    MetricRow(title: "Stress", value: "\(session.stress)")
+                    MetricRow(title: "Recovery", value: "\(session.recovery)")
+                    MetricRow(title: "Motivation", value: "\(session.motivation)")
+                    MetricRow(title: "Energy", value: "\(session.energy)")
+                    MetricRow(title: "Mood", value: "\(session.mood)")
                 }
                 .padding()
                 .background(Color.appCard)
@@ -5832,7 +5882,7 @@ struct BJJSessionDetailView: View {
                             .font(.headline)
                             .foregroundColor(.appTextSecondary)
                         
-                        Text(submissionSummary(session.submissionsFinished))
+                        SubmissionChipSummary(submissions: session.submissionsFinished)
                             .foregroundColor(.appTextPrimary)
                     }
                     .padding()
@@ -5846,7 +5896,7 @@ struct BJJSessionDetailView: View {
                             .font(.headline)
                             .foregroundColor(.appTextSecondary)
                         
-                        Text(submissionSummary(session.submissionsReceived))
+                        SubmissionChipSummary(submissions: session.submissionsReceived)
                             .foregroundColor(.appTextPrimary)
                     }
                     .padding()
@@ -5873,6 +5923,35 @@ struct BJJSessionDetailView: View {
         .background(Color.appBackground.ignoresSafeArea())
         .navigationTitle("Session Detail")
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+struct SubmissionChipSummary: View {
+    let submissions: [SubmissionCount]
+
+    private var filteredSubmissions: [SubmissionCount] {
+        submissions
+            .filter { $0.count > 0 }
+            .sorted { $0.count > $1.count }
+    }
+
+    private let columns = [
+        GridItem(.adaptive(minimum: 150), spacing: 8)
+    ]
+
+    var body: some View {
+        LazyVGrid(columns: columns, alignment: .leading, spacing: 8) {
+            ForEach(filteredSubmissions) { item in
+                Text("\(item.submission.rawValue) ×\(item.count)")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundColor(.appTextPrimary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.appCardSecondary)
+                    .cornerRadius(10)
+            }
+        }
     }
 }
 struct EditBJJSessionView: View {
