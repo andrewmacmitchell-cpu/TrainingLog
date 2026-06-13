@@ -281,7 +281,7 @@ struct SubmissionCount: Identifiable, Codable {
     let count: Int
 }
 enum SubmissionType: String, Codable, CaseIterable {
-    case rearNakedChoke = "Rear Naked Choke"
+    case rearNakedChoke = "RNC"
     case guillotine = "Guillotine"
     case darce = "D'Arce"
     case anaconda = "Anaconda"
@@ -289,8 +289,8 @@ enum SubmissionType: String, Codable, CaseIterable {
     case armTriangle = "Arm Triangle"
     case ezekiel = "Ezekiel"
     case bowAndArrow = "Bow and Arrow"
-    case baseballBatChoke = "Baseball Bat Choke"
-    case crossCollarChoke = "Cross Collar Choke"
+    case baseballBatChoke = "Baseball Bat"
+    case crossCollarChoke = "Cross Collar"
     case loopChoke = "Loop Choke"
     
     case armbar = "Armbar"
@@ -299,7 +299,7 @@ enum SubmissionType: String, Codable, CaseIterable {
     case omoplata = "Omoplata"
     case wristLock = "Wrist Lock"
     
-    case straightAnkleLock = "Straight Ankle Lock"
+    case straightAnkleLock = "Ankle Lock"
     case heelHook = "Heel Hook"
     case kneeBar = "Kneebar"
     case toeHold = "Toe Hold"
