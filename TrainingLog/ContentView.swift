@@ -4368,6 +4368,64 @@ struct BJJView: View {
                 return (belt: belt, minutes: minutes, percentage: percentage)
             }
     }
+    func submissionColor(for submission: SubmissionType) -> Color {
+        switch submission {
+
+        // Blue / gray family
+        case .rearNakedChoke:
+            return Color(red: 0.42, green: 0.62, blue: 0.78)
+        case .darce:
+            return Color(red: 0.55, green: 0.62, blue: 0.70)
+        case .anaconda:
+            return Color(red: 0.47, green: 0.55, blue: 0.62)
+        case .armbar:
+            return Color(red: 0.38, green: 0.52, blue: 0.66)
+        case .straightAnkleLock:
+            return Color(red: 0.36, green: 0.48, blue: 0.58)
+
+        // Orange / warm neutral family
+        case .triangle:
+            return Color(red: 0.66, green: 0.50, blue: 0.38)
+        case .armTriangle:
+            return Color(red: 0.70, green: 0.55, blue: 0.40)
+        case .kimura:
+            return Color(red: 0.58, green: 0.54, blue: 0.48)
+        case .americana:
+            return Color(red: 0.64, green: 0.58, blue: 0.50)
+        case .kneeBar:
+            return Color(red: 0.72, green: 0.48, blue: 0.34)
+
+        // Muted purple / secondary accents
+        case .guillotine:
+            return Color(red: 0.48, green: 0.43, blue: 0.62)
+        case .omoplata:
+            return Color(red: 0.52, green: 0.46, blue: 0.66)
+        case .wristLock:
+            return Color(red: 0.46, green: 0.42, blue: 0.56)
+
+        // Chokes / remaining neutral accents
+        case .ezekiel:
+            return Color(red: 0.50, green: 0.57, blue: 0.60)
+        case .bowAndArrow:
+            return Color(red: 0.44, green: 0.58, blue: 0.64)
+        case .baseballBatChoke:
+            return Color(red: 0.62, green: 0.56, blue: 0.46)
+        case .crossCollarChoke:
+            return Color(red: 0.54, green: 0.58, blue: 0.62)
+        case .loopChoke:
+            return Color(red: 0.44, green: 0.50, blue: 0.58)
+
+        // Leg lock accents
+        case .heelHook:
+            return Color(red: 0.68, green: 0.52, blue: 0.36)
+        case .toeHold:
+            return Color(red: 0.60, green: 0.50, blue: 0.42)
+        case .calfSlicer:
+            return Color(red: 0.56, green: 0.48, blue: 0.40)
+        case .other:
+            return Color(red: 0.42, green: 0.45, blue: 0.50)
+        }
+    }
     
     var body: some View {
         NavigationStack {
@@ -4650,7 +4708,7 @@ struct BJJView: View {
                                     .foregroundColor(.appTextSecondary)
                             } else {
                                 ZStack {
-                                    Chart(orderedbeltTotals, id: \.belt) { item in
+                                    Chart(orderedBeltTotals, id: \.belt) { item in
                                         SectorMark(
                                             angle: .value("Rounds", item.count),
                                             innerRadius: .ratio(0.6)
@@ -4671,7 +4729,7 @@ struct BJJView: View {
                                 }
 
                                 VStack(spacing: 8) {
-                                    ForEach(orderedbeltTotals, id: \.belt) { item in
+                                    ForEach(orderedBeltTotals, id: \.belt) { item in
                                         let percentage = totalBeltRounds > 0
                                             ? Double(item.count) / Double(totalBeltRounds)
                                             : 0
@@ -4722,8 +4780,9 @@ struct BJJView: View {
                                             angle: .value("Count", item.count),
                                             innerRadius: .ratio(0.6)
                                         )
-                                        .foregroundStyle(by: .value("Submission", item.submission.rawValue))
+                                        .foregroundStyle(submissionColor(for: item.submission))
                                     }
+                                    .chartLegend(.hidden)
                                     .frame(height: 220)
                                     
                                     VStack(spacing: 4) {
@@ -4736,20 +4795,36 @@ struct BJJView: View {
                                             .foregroundColor(.appTextSecondary)
                                     }
                                 }
+                                
+                                let totalFinishes = finishedTotals.reduce(0) { $0 + $1.count }
+
                                 VStack(spacing: 8) {
-                                    ForEach(finishedTotals.prefix(5), id: \.submission) { item in
+                                    ForEach(
+                                        finishedChartTotals
+                                            .sorted { $0.count > $1.count }
+                                            .prefix(5),
+                                        id: \.submission
+                                    ) { item in
+                                        let percentage = totalFinishes > 0
+                                            ? Double(item.count) / Double(totalFinishes)
+                                            : 0
+
                                         HStack {
                                             Circle()
-                                                .fill(Color.appPrimary)
+                                                .fill(submissionColor(for: item.submission))
                                                 .frame(width: 10, height: 10)
 
                                             Text(item.submission.rawValue)
+                                                .foregroundColor(.appTextPrimary)
 
                                             Spacer()
 
-                                            Text("\(item.count)")
+                                            Text("\(Int(percentage * 100))%")
                                                 .fontWeight(.semibold)
-                                        }
+                                                .foregroundColor(.appTextPrimary)
+
+                                            Text("· \(item.count) \(item.count == 1 ? "finish" : "finishes")")
+                                                .foregroundColor(.appTextSecondary)                                        }
                                     }
                                 }
                             }
@@ -4779,8 +4854,9 @@ struct BJJView: View {
                                             angle: .value("Count", item.count),
                                             innerRadius: .ratio(0.6)
                                         )
-                                        .foregroundStyle(by: .value("Submission", item.submission.rawValue))
+                                        .foregroundStyle(submissionColor(for: item.submission))
                                     }
+                                    .chartLegend(.hidden)
                                     .frame(height: 220)
                                     
                                     VStack(spacing: 4) {
