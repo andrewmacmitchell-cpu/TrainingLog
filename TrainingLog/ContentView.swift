@@ -4344,6 +4344,21 @@ struct BJJView: View {
                 return (date: session.date, load: load)
             }
     }
+    func trainingDemand(for session: BJJSession) -> Int {
+        let liveMinutesScore = session.totalLiveMinutes
+
+        let hardMinutes = session.rounds
+            .filter { $0.roundRPE >= 8 }
+            .reduce(0) { $0 + $1.durationMinutes }
+
+        let hardRounds = session.rounds
+            .filter { $0.roundRPE >= 8 }
+            .count
+
+        let rpeScore = session.sessionRPE * 5
+
+        return liveMinutesScore + (hardMinutes * 2) + (hardRounds * 5) + rpeScore
+    }
     var opponentBeltExposure: [(belt: BeltLevel, minutes: Int, percentage: Double)] {
         let totalMinutes = filteredSessions
             .flatMap { $0.rounds }
@@ -4436,7 +4451,7 @@ struct BJJView: View {
                     VStack(alignment: .leading, spacing: 14) {
                         
                         HStack {
-                            Text("BJJ")
+                            Text("Jiu-Jitsu")
                                 .font(.headline)
                                 .foregroundColor(.appTextSecondary)
 
@@ -4498,7 +4513,12 @@ struct BJJView: View {
                         Menu {
                             ForEach(BJJAnalyticsRange.allCases, id: \.self) { range in
                                 Button {
-                                    selectedRange = range
+                                    var transaction = Transaction()
+                                    transaction.animation = nil
+
+                                    withTransaction(transaction) {
+                                        selectedRange = range
+                                    }
                                 } label: {
                                     Text(range.rawValue)
                                 }
@@ -4509,14 +4529,18 @@ struct BJJView: View {
                                     .font(.headline)
                                     .fontWeight(.semibold)
                                     .foregroundColor(.appTextPrimary)
-                                
-                                Spacer()
-                                
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+
                                 Image(systemName: "chevron.up.chevron.down")
                                     .foregroundColor(.appTextSecondary)
                             }
+                            .frame(maxWidth: .infinity)
+                            .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
+                        .transaction { transaction in
+                            transaction.animation = nil
+                        }
                         
                         MetricRow(title: "Sessions", value: "\(filteredSessions.count)")
                         MetricRow(title: "Avg Readiness", value: String(format: "%.1f", filteredAverageReadiness))
@@ -4628,26 +4652,43 @@ struct BJJView: View {
                             Text("Readiness Trend")
                                 .font(.headline)
                                 .foregroundColor(.appTextSecondary)
-                            
-                            if readinessChartData.count < 2 {
-                                Text("Not enough readiness data yet.")
+
+                            let readinessData = filteredSessions
+                                .sorted { $0.date < $1.date }
+                                .map { session in
+                                    (
+                                        date: session.date,
+                                        readiness: session.readinessAverage
+                                    )
+                                }
+
+                            if readinessData.count < 5 {
+                                Text("Complete 5 sessions to unlock readiness trends.")
                                     .foregroundColor(.appTextSecondary)
                             } else {
-                                Chart(readinessChartData, id: \.date) { item in
+                                let averageReadiness = readinessData.reduce(0) { $0 + $1.readiness } / Double(readinessData.count)
+
+                                MetricRow(
+                                    title: "Average",
+                                    value: String(format: "%.1f / 5", averageReadiness)
+                                )
+
+                                Chart(readinessData, id: \.date) { item in
                                     LineMark(
                                         x: .value("Date", item.date),
                                         y: .value("Readiness", item.readiness)
                                     )
-                                    
+                                    .interpolationMethod(.catmullRom)
+                                    .foregroundStyle(Color.appPrimary)
+
                                     PointMark(
                                         x: .value("Date", item.date),
                                         y: .value("Readiness", item.readiness)
                                     )
+                                    .foregroundStyle(Color.appPrimary)
                                 }
                                 .chartYScale(domain: 1...5)
-                                .chartYAxis(.hidden)
-                                .chartXAxis(.hidden)
-                                .frame(height: 140)
+                                .frame(height: 180)
                             }
                         }
                         .padding()
@@ -4662,25 +4703,42 @@ struct BJJView: View {
                             Text("Training Demand Trend")
                                 .font(.headline)
                                 .foregroundColor(.appTextSecondary)
-                            
-                            if trainingDemandChartData.count < 2 {
-                                Text("Not enough load data yet.")
-                                    .foregroundColor(.appTextSecondary)
-                            } else {
-                                Chart(trainingDemandChartData, id: \.date) { item in
-                                    LineMark(
-                                        x: .value("Date", item.date),
-                                        y: .value("Load", item.load)
-                                    )
-                                    
-                                    PointMark(
-                                        x: .value("Date", item.date),
-                                        y: .value("Load", item.load)
+
+                            let demandData = filteredSessions
+                                .sorted { $0.date < $1.date }
+                                .map { session in
+                                    (
+                                        date: session.date,
+                                        demand: trainingDemand(for: session)
                                     )
                                 }
-                                .chartYAxis(.hidden)
-                                .chartXAxis(.hidden)
-                                .frame(height: 140)
+
+                            if demandData.count < 5 {
+                                Text("Complete 5 sessions to unlock training demand trends.")
+                                    .foregroundColor(.appTextSecondary)
+                            } else {
+                                let averageDemand = demandData.reduce(0) { $0 + $1.demand } / demandData.count
+
+                                MetricRow(
+                                    title: "Average",
+                                    value: "\(averageDemand)"
+                                )
+
+                                Chart(demandData, id: \.date) { item in
+                                    LineMark(
+                                        x: .value("Date", item.date),
+                                        y: .value("Training Demand", item.demand)
+                                    )
+                                    .interpolationMethod(.catmullRom)
+                                    .foregroundStyle(Color.appPrimary)
+
+                                    PointMark(
+                                        x: .value("Date", item.date),
+                                        y: .value("Training Demand", item.demand)
+                                    )
+                                    .foregroundStyle(Color.appPrimary)
+                                }
+                                .frame(height: 180)
                             }
                         }
                         .padding()
@@ -4800,11 +4858,12 @@ struct BJJView: View {
 
                                 VStack(spacing: 8) {
                                     ForEach(
-                                        finishedChartTotals
+                                        finishedTotals
                                             .sorted { $0.count > $1.count }
                                             .prefix(5),
                                         id: \.submission
                                     ) { item in
+
                                         let percentage = totalFinishes > 0
                                             ? Double(item.count) / Double(totalFinishes)
                                             : 0
@@ -4815,6 +4874,7 @@ struct BJJView: View {
                                                 .frame(width: 10, height: 10)
 
                                             Text(item.submission.rawValue)
+                                                .fontWeight(.medium)
                                                 .foregroundColor(.appTextPrimary)
 
                                             Spacer()
@@ -4824,7 +4884,8 @@ struct BJJView: View {
                                                 .foregroundColor(.appTextPrimary)
 
                                             Text("· \(item.count) \(item.count == 1 ? "finish" : "finishes")")
-                                                .foregroundColor(.appTextSecondary)                                        }
+                                                .foregroundColor(.appTextSecondary)
+                                        }
                                     }
                                 }
                             }
@@ -4867,6 +4928,41 @@ struct BJJView: View {
                                         
                                         Text("Received")
                                             .foregroundColor(.appTextSecondary)
+                                    }
+                                }
+                                
+                                let totalReceived = receivedTotals.reduce(0) { $0 + $1.count }
+
+                                VStack(spacing: 8) {
+                                    ForEach(
+                                        receivedTotals
+                                            .sorted { $0.count > $1.count }
+                                            .prefix(5),
+                                        id: \.submission
+                                    ) { item in
+
+                                        let percentage = totalReceived > 0
+                                            ? Double(item.count) / Double(totalReceived)
+                                            : 0
+
+                                        HStack {
+                                            Circle()
+                                                .fill(submissionColor(for: item.submission))
+                                                .frame(width: 10, height: 10)
+
+                                            Text(item.submission.rawValue)
+                                                .fontWeight(.medium)
+                                                .foregroundColor(.appTextPrimary)
+
+                                            Spacer()
+
+                                            Text("\(Int(percentage * 100))%")
+                                                .fontWeight(.semibold)
+                                                .foregroundColor(.appTextPrimary)
+
+                                            Text("· \(item.count) \(item.count == 1 ? "submission" : "submissions")")
+                                                .foregroundColor(.appTextSecondary)
+                                        }
                                     }
                                 }
                             }
