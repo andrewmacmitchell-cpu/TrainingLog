@@ -2675,6 +2675,11 @@ struct ActiveWorkoutView: View {
     @State private var showWorkoutBrief = false
     @State private var completedWorkoutSets: [WorkoutSetEntry] = []
     @State private var completedWorkoutSetsByExercise: [String: [WorkoutSetEntry]] = [:]
+    @FocusState private var focusedField: ActiveWorkoutField?
+
+    enum ActiveWorkoutField {
+        case weight
+    }
     
     let onFinish: () -> Void
     
@@ -2763,9 +2768,9 @@ struct ActiveWorkoutView: View {
             return "No readiness data yet."
         }
         
-        if readiness >= 8 {
+        if readiness >= 4.2 {
             return "Readiness is high today. Get after it."
-        } else if readiness >= 5 {
+        } else if readiness >= 2.8 {
             return "Typical day. Stay the course. Don't chase PRs."
         } else {
             return "Way to show up when you aren't feeling it. Reduce load today and stack quality reps."
@@ -3284,6 +3289,7 @@ struct ActiveWorkoutView: View {
                         )
                         .textFieldStyle(.roundedBorder)
                         .keyboardType(.decimalPad)
+                        .focused($focusedField, equals: .weight)
                         
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Reps")
@@ -3423,6 +3429,15 @@ struct ActiveWorkoutView: View {
                 }
             }
             .padding()
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+
+                    Button("Done") {
+                        focusedField = nil
+                    }
+                }
+            }
             .navigationTitle("Active Workout")
             .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $showRestTimer) {
@@ -3529,6 +3544,7 @@ struct ActiveWorkoutView: View {
                                     }
                                 }
                                 .padding()
+                                .frame(maxWidth: .infinity, alignment: .leading)
                                 .background(Color.appCard)
                                 .cornerRadius(12)
                                 
@@ -3694,24 +3710,60 @@ struct WorkoutCheckInView: View {
     @State private var bodyweight = ""
     
     @State private var showActiveWorkout = false
+    @FocusState private var focusedField: CheckInField?
+
+    enum CheckInField {
+        case bodyweight
+    }
     
     let onFinish: () -> Void
     
     var body: some View {
         NavigationStack {
             Form {
-                Section("Readiness Check-In") {
-                    RatingChipSelector(title: "Sleep", value: $sleep)
-                    ReadinessSlider(title: "Stress", value: $stress)
-                    ReadinessSlider(title: "Recovery", value: $recovery)
-                    ReadinessSlider(title: "Motivation", value: $motivation)
-                    ReadinessSlider(title: "Energy", value: $energy)
-                    ReadinessSlider(title: "Mood", value: $mood)
+                Section {
+                    VStack(alignment: .leading, spacing: 12) {
+                        RatingChipSelector(title: "Sleep", value: $sleep)
+                        RatingChipSelector(title: "Stress", value: $stress)
+                        RatingChipSelector(title: "Recovery", value: $recovery)
+                        RatingChipSelector(title: "Motivation", value: $motivation)
+                        RatingChipSelector(title: "Energy", value: $energy)
+                        RatingChipSelector(title: "Mood", value: $mood)
+                    }
+                } header: {
+                    Text("Readiness Check-In")
+                        .font(.headline)
+                        .foregroundColor(.appTextPrimary)
                 }
+                .listRowBackground(Color.appCard)
                 
-                Section("Bodyweight") {
-                    TextField("Bodyweight", text: $bodyweight)
-                        .keyboardType(.decimalPad)
+                Section {
+                    TextField(
+                        "",
+                        text: $bodyweight,
+                        prompt: Text("Bodyweight")
+                            .foregroundColor(.white.opacity(0.6))
+                    )
+                    .keyboardType(.decimalPad)
+                    .focused($focusedField, equals: .bodyweight)
+                    .foregroundColor(.appTextPrimary)
+                    
+                } header: {
+                    Text("Bodyweight")
+                        .font(.headline)
+                        .foregroundColor(.appTextPrimary)
+                }
+                .listRowBackground(Color.appCard)
+            }
+            .scrollContentBackground(.hidden)
+            .background(Color.appBackground)
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+
+                    Button("Done") {
+                        focusedField = nil
+                    }
                 }
             }
             .navigationTitle("Workout Check-In")
