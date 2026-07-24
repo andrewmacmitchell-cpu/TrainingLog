@@ -325,21 +325,27 @@ enum WorkoutTemplateCategory: String, Codable, CaseIterable {
 
 @Observable
 class AppStore {
+    @ObservationIgnored private var isLoading = false
+
+    private func saveIfNeeded() {
+        guard !isLoading else { return }
+        save()
+    }
     var historyEntries: [WorkoutHistoryEntry] = [] {
-        didSet { save() }
+        didSet { saveIfNeeded() }
     }
     
     var completedWorkouts: [WorkoutCompleteEntry] = [] {
-        didSet { save() }
+        didSet { saveIfNeeded() }
     }
     var todaysWorkoutTitle: String = "Lower Body Strength" {
-        didSet { save() }
+        didSet { saveIfNeeded() }
     }
     var todaysWorkoutNotes: String = "" {
-        didSet { UserDefaults.standard.set(todaysWorkoutNotes, forKey: "todaysWorkoutNotes") }
+        didSet { saveIfNeeded() }
     }
     var checkOuts: [WorkoutCheckOut] = [] {
-        didSet { save() }
+        didSet { saveIfNeeded() }
     }
     var todaysExercises: [ExerciseItem] = [
         ExerciseItem(
@@ -387,119 +393,125 @@ class AppStore {
             restSeconds: 90
         )
     ] {
-        didSet { save() }
+        didSet { saveIfNeeded() }
     }
-    var workoutTemplates: [WorkoutTemplate] = []
+    var workoutTemplates: [WorkoutTemplate] = [] {
+        didSet { saveIfNeeded() }
+    }
     var checkIns: [WorkoutCheckIn] = [] {
-        didSet { save() }
+        didSet { saveIfNeeded() }
     }
     
     init() {
         load()
     }
     var prHistoryEntries: [PRHistoryEntry] = [] {
-        didSet { save() }
+        didSet { saveIfNeeded() }
     }
     var bjjSessions: [BJJSession] = [] {
-        didSet { save() }
+        didSet { saveIfNeeded() }
     }
     
     private func save() {
         let encoder = JSONEncoder()
-        
+
         if let historyData = try? encoder.encode(historyEntries) {
             UserDefaults.standard.set(historyData, forKey: "historyEntries")
         }
-        
+
         if let completedData = try? encoder.encode(completedWorkouts) {
             UserDefaults.standard.set(completedData, forKey: "completedWorkouts")
         }
-        
+
         if let todaysExercisesData = try? encoder.encode(todaysExercises) {
             UserDefaults.standard.set(todaysExercisesData, forKey: "todaysExercises")
         }
+
         if let templateData = try? encoder.encode(workoutTemplates) {
-            UserDefaults.standard.set(
-                templateData,
-                forKey: "workoutTemplates"
-            )
+            UserDefaults.standard.set(templateData, forKey: "workoutTemplates")
         }
+
         if let checkInData = try? encoder.encode(checkIns) {
             UserDefaults.standard.set(checkInData, forKey: "checkIns")
         }
+
         if let checkOutData = try? encoder.encode(checkOuts) {
             UserDefaults.standard.set(checkOutData, forKey: "checkOuts")
         }
-        if let bjjData = try? encoder.encode(bjjSessions) {
-            UserDefaults.standard.set(bjjData, forKey: "bjjSessions")
-        }
-        if let beltData = try? encoder.encode(beltRankChanges) {
-            UserDefaults.standard.set(beltData, forKey: "beltRankChanges")
-        }
-        if let prData = try? encoder.encode(prHistoryEntries) {
-            UserDefaults.standard.set(prData, forKey: "prHistoryEntries")
-        }
+
         if let bjjData = try? encoder.encode(bjjSessions) {
             UserDefaults.standard.set(bjjData, forKey: "bjjSessions")
         }
 
+        if let beltData = try? encoder.encode(beltRankChanges) {
+            UserDefaults.standard.set(beltData, forKey: "beltRankChanges")
+        }
+
+        if let prData = try? encoder.encode(prHistoryEntries) {
+            UserDefaults.standard.set(prData, forKey: "prHistoryEntries")
+        }
+
         UserDefaults.standard.set(todaysWorkoutTitle, forKey: "todaysWorkoutTitle")
+        UserDefaults.standard.set(todaysWorkoutNotes, forKey: "todaysWorkoutNotes")
     }
     
     private func load() {
+        isLoading = true
+        defer { isLoading = false }
+
         let decoder = JSONDecoder()
-        if let checkInData = UserDefaults.standard.data(forKey: "checkIns"),
-           let decodedCheckIns = try? decoder.decode([WorkoutCheckIn].self, from: checkInData) {
-            checkIns = decodedCheckIns
-        }
+
         if let savedTitle = UserDefaults.standard.string(forKey: "todaysWorkoutTitle") {
             todaysWorkoutTitle = savedTitle
         }
+
+        if let savedNotes = UserDefaults.standard.string(forKey: "todaysWorkoutNotes") {
+            todaysWorkoutNotes = savedNotes
+        }
+
         if let historyData = UserDefaults.standard.data(forKey: "historyEntries"),
            let decodedHistory = try? decoder.decode([WorkoutHistoryEntry].self, from: historyData) {
             historyEntries = decodedHistory
         }
-        
+
         if let completedData = UserDefaults.standard.data(forKey: "completedWorkouts"),
            let decodedCompleted = try? decoder.decode([WorkoutCompleteEntry].self, from: completedData) {
             completedWorkouts = decodedCompleted
         }
-        
+
         if let todaysExercisesData = UserDefaults.standard.data(forKey: "todaysExercises"),
            let decodedTodaysExercises = try? decoder.decode([ExerciseItem].self, from: todaysExercisesData) {
             todaysExercises = decodedTodaysExercises
         }
-        if let templateData = UserDefaults.standard.data(
-            forKey: "workoutTemplates"
-        ),
-        let decodedTemplates = try? decoder.decode(
-            [WorkoutTemplate].self,
-            from: templateData
-        ) {
+
+        if let templateData = UserDefaults.standard.data(forKey: "workoutTemplates"),
+           let decodedTemplates = try? decoder.decode([WorkoutTemplate].self, from: templateData) {
             workoutTemplates = decodedTemplates
         }
-        if let savedNotes = UserDefaults.standard.string(forKey: "todaysWorkoutNotes") {
-            todaysWorkoutNotes = savedNotes
+
+        if let checkInData = UserDefaults.standard.data(forKey: "checkIns"),
+           let decodedCheckIns = try? decoder.decode([WorkoutCheckIn].self, from: checkInData) {
+            checkIns = decodedCheckIns
         }
+
         if let checkOutData = UserDefaults.standard.data(forKey: "checkOuts"),
            let decodedCheckOuts = try? decoder.decode([WorkoutCheckOut].self, from: checkOutData) {
             checkOuts = decodedCheckOuts
         }
+
         if let bjjData = UserDefaults.standard.data(forKey: "bjjSessions"),
            let decodedBJJ = try? decoder.decode([BJJSession].self, from: bjjData) {
             bjjSessions = decodedBJJ
         }
+
         if let beltData = UserDefaults.standard.data(forKey: "beltRankChanges"),
            let decodedBelts = try? decoder.decode([BeltRankChange].self, from: beltData) {
             beltRankChanges = decodedBelts
         }
+
         if let prData = UserDefaults.standard.data(forKey: "prHistoryEntries"),
            let decodedPRs = try? decoder.decode([PRHistoryEntry].self, from: prData) {
             prHistoryEntries = decodedPRs
-        }
-        if let bjjData = UserDefaults.standard.data(forKey: "bjjSessions"),
-           let decodedBJJ = try? decoder.decode([BJJSession].self, from: bjjData) {
-            bjjSessions = decodedBJJ
         }
     }
     func addCheckIn(
@@ -1142,7 +1154,7 @@ class AppStore {
         return max + 5
     }
     var beltRankChanges: [BeltRankChange] = [] {
-        didSet { save() }
+        didSet { saveIfNeeded() }
     }
 }
 
@@ -5069,7 +5081,7 @@ struct BJJView: View {
                                             Text("\(session.totalRounds) rounds • \(session.totalLiveMinutes) live min")
                                                 .foregroundColor(.appTextSecondary)
                                             
-                                            Text("Session RPE: \(session.sessionRPE)/10")
+                                            Text("Session RPE: \(session.sessionRPE)/5")
                                                 .foregroundColor(.appTextSecondary)
                                             
                                             Text("Readiness: \(session.readinessAverage, specifier: "%.1f")/5")
